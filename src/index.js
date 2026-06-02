@@ -40,7 +40,26 @@ export { default as Exporter }            from './exporters/Exporter.js';
 export { default as JsonExporter }        from './exporters/JsonExporter.js';
 export { default as PremiereXmlExporter } from './exporters/PremiereXmlExporter.js';
 export { default as FcpxmlExporter }      from './exporters/FcpxmlExporter.js';
+export { default as EdlExporter }         from './exporters/EdlExporter.js';
 export { default as Mp4Exporter }         from './exporters/Mp4Exporter.js';
+
+// ─── Interchange (ITR) ────────────────────────────────────────────────────────
+export { default as IntermediateTimeline, ITR_VERSION } from './interchange/IntermediateTimeline.js';
+export { default as TimelineConverter }    from './interchange/TimelineConverter.js';
+export { default as AssetReference }       from './interchange/AssetReference.js';
+export { default as TrackRepresentation }  from './interchange/TrackRepresentation.js';
+export { default as ClipRepresentation }   from './interchange/ClipRepresentation.js';
+export { default as EffectRepresentation } from './interchange/EffectRepresentation.js';
+export { default as TransitionRepresentation, TRANSITION_ALIGNMENT } from './interchange/TransitionRepresentation.js';
+export { default as CaptionRepresentation } from './interchange/CaptionRepresentation.js';
+export { default as InterchangeValidator } from './interchange/validation/InterchangeValidator.js';
+
+// Interchange utilities
+export { default as TimeCode, PREMIERE_TICKS_PER_SECOND, RATE_TABLE } from './interchange/utils/TimeCode.js';
+export { default as XmlBuilder }            from './interchange/utils/XmlBuilder.js';
+export { escapeText, escapeAttr, escapeUrl, unescapeText, cdata } from './interchange/utils/XmlEscaper.js';
+export { default as XmlValidator }          from './interchange/utils/XmlValidator.js';
+export { default as XmlNamespaceManager, VF_NAMESPACE, VF_PREFIX } from './interchange/utils/XmlNamespaceManager.js';
 
 // ─── Preview ─────────────────────────────────────────────────────────────────
 export { default as PreviewPlayer }   from './preview/PreviewPlayer.js';
