@@ -1,0 +1,37 @@
+{
+  "name": "videoforge",
+  "version": "1.0.0",
+  "description": "Foundation library for building video editors, automation tools, and AI-powered editing systems.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "lint": "eslint src/",
+    "example": "node examples/basic-usage.js"
+  },
+  "keywords": [
+    "video",
+    "editor",
+    "timeline",
+    "automation",
+    "ai",
+    "ffmpeg",
+    "premiere",
+    "fcpxml",
+    "nle"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {}
+}

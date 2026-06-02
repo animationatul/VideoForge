@@ -1,0 +1,480 @@
+{
+  "id": "project_mpwnph2lququu60001",
+  "name": "My First Edit",
+  "version": "1.0.0",
+  "timeline": {
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "sampleRate": 48000,
+    "channels": 2
+  },
+  "tracks": [
+    {
+      "id": "track_mpwnph2nzruoc80002",
+      "type": "video",
+      "name": "Main Video",
+      "volume": 1,
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "visible": true,
+      "clips": [
+        {
+          "id": "clip_mpwnph2nwp2md00007",
+          "type": "video",
+          "name": "",
+          "asset": {
+            "id": "asset_mpwnph2nbdlbw60006",
+            "path": "intro.mp4",
+            "type": "video",
+            "metadata": {},
+            "loaded": false,
+            "createdAt": "2026-06-02T13:11:45.839Z"
+          },
+          "startTime": 0,
+          "inPoint": 5,
+          "outPoint": 20,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2nmucxaz000c",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 1,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "direction": "in"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.839Z",
+          "volumeLevel": 1,
+          "playbackRate": 1,
+          "reversed": false
+        },
+        {
+          "id": "clip_mpwnph2ntplmtv0009",
+          "type": "video",
+          "name": "",
+          "asset": {
+            "id": "asset_mpwnph2nwvnkg10008",
+            "path": "main-footage.mp4",
+            "type": "video",
+            "metadata": {},
+            "loaded": false,
+            "createdAt": "2026-06-02T13:11:45.839Z"
+          },
+          "startTime": 30,
+          "inPoint": 0,
+          "outPoint": 60,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2np3pp6e000e",
+              "type": "transition",
+              "enabled": true,
+              "params": {
+                "transitionType": "crossDissolve",
+                "duration": 1,
+                "easing": "easeInOut",
+                "fromClipId": "clip_mpwnph2nwp2md00007",
+                "toClipId": "clip_mpwnph2ntplmtv0009"
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "transitionType": "crossDissolve"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.839Z",
+          "volumeLevel": 0.9,
+          "playbackRate": 0.8,
+          "reversed": false
+        },
+        {
+          "id": "clip_mpwnph2oguzg63000r",
+          "type": "video",
+          "name": "",
+          "asset": {
+            "id": "asset_mpwnph2nwvnkg10008",
+            "path": "main-footage.mp4",
+            "type": "video",
+            "metadata": {},
+            "loaded": false,
+            "createdAt": "2026-06-02T13:11:45.839Z"
+          },
+          "startTime": 90,
+          "inPoint": 60,
+          "outPoint": 120,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2o2vnyqs000s",
+              "type": "transition",
+              "enabled": true,
+              "params": {
+                "transitionType": "crossDissolve",
+                "duration": 1,
+                "easing": "easeInOut",
+                "fromClipId": "clip_mpwnph2nwp2md00007",
+                "toClipId": "clip_mpwnph2ntplmtv0009"
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "transitionType": "crossDissolve"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.840Z",
+          "volumeLevel": 0.9,
+          "playbackRate": 0.8,
+          "reversed": false
+        },
+        {
+          "id": "clip_mpwnph2nm9enhq000b",
+          "type": "video",
+          "name": "",
+          "asset": {
+            "id": "asset_mpwnph2n23xbmg000a",
+            "path": "outro.mp4",
+            "type": "video",
+            "metadata": {},
+            "loaded": false,
+            "createdAt": "2026-06-02T13:11:45.839Z"
+          },
+          "startTime": 150,
+          "inPoint": 0,
+          "outPoint": 15,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2nwkvoei000d",
+              "type": "fadeOut",
+              "enabled": true,
+              "params": {
+                "direction": "out",
+                "duration": 1.5,
+                "easing": "linear",
+                "fromOpacity": 1,
+                "toOpacity": 0
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "direction": "out"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.839Z",
+          "volumeLevel": 1,
+          "playbackRate": 1,
+          "reversed": false
+        }
+      ],
+      "createdAt": "2026-06-02T13:11:45.839Z"
+    },
+    {
+      "id": "track_mpwnph2n0s759t0003",
+      "type": "audio",
+      "name": "Music",
+      "volume": 1,
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "visible": true,
+      "clips": [
+        {
+          "id": "clip_mpwnph2ny9xzra000g",
+          "type": "audio",
+          "name": "",
+          "asset": {
+            "id": "asset_mpwnph2n2v0s8o000f",
+            "path": "background-music.mp3",
+            "type": "audio",
+            "metadata": {},
+            "loaded": false,
+            "createdAt": "2026-06-02T13:11:45.839Z"
+          },
+          "startTime": 0,
+          "inPoint": 0,
+          "outPoint": 150,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2n4r5zr4000h",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 2,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "direction": "in"
+            },
+            {
+              "id": "fx_mpwnph2n8winhu000i",
+              "type": "fadeOut",
+              "enabled": true,
+              "params": {
+                "direction": "out",
+                "duration": 3,
+                "easing": "linear",
+                "fromOpacity": 1,
+                "toOpacity": 0
+              },
+              "createdAt": "2026-06-02T13:11:45.839Z",
+              "direction": "out"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.839Z",
+          "volumeLevel": 0.6,
+          "panValue": -0.1,
+          "playbackRate": 1
+        }
+      ],
+      "createdAt": "2026-06-02T13:11:45.839Z"
+    },
+    {
+      "id": "track_mpwnph2n22rg9v0004",
+      "type": "text",
+      "name": "Captions",
+      "volume": 1,
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "visible": true,
+      "clips": [
+        {
+          "id": "clip_mpwnph2onc4ql9000j",
+          "type": "text",
+          "name": "",
+          "asset": null,
+          "startTime": 0,
+          "inPoint": 0,
+          "outPoint": 5,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2osr1xmv000k",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 0.5,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "in"
+            },
+            {
+              "id": "fx_mpwnph2owqddcy000l",
+              "type": "fadeOut",
+              "enabled": true,
+              "params": {
+                "direction": "out",
+                "duration": 0.5,
+                "easing": "linear",
+                "fromOpacity": 1,
+                "toOpacity": 0
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "out"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.840Z",
+          "text": "VideoForge Demo",
+          "fontFamily": "Helvetica Neue",
+          "fontSizeValue": 72,
+          "colorValue": "#FFFFFF",
+          "bgColor": "transparent",
+          "alignValue": "center",
+          "bold": true,
+          "italic": false,
+          "x": 0,
+          "y": 0,
+          "opacityLevel": 1
+        },
+        {
+          "id": "clip_mpwnph2ow12lu1000m",
+          "type": "text",
+          "name": "",
+          "asset": null,
+          "startTime": 5,
+          "inPoint": 0,
+          "outPoint": 4,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2ogbx32s000n",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 1,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "in"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.840Z",
+          "text": "Built with VideoForge",
+          "fontFamily": "Arial",
+          "fontSizeValue": 36,
+          "colorValue": "#CCCCCC",
+          "bgColor": "transparent",
+          "alignValue": "center",
+          "bold": false,
+          "italic": false,
+          "x": 960,
+          "y": 620,
+          "opacityLevel": 1
+        },
+        {
+          "id": "clip_mpwnph38gt55dc000t",
+          "type": "text",
+          "name": "",
+          "asset": null,
+          "startTime": 30,
+          "inPoint": 0,
+          "outPoint": 5,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph38oxtabo000u",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 0.5,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "in"
+            },
+            {
+              "id": "fx_mpwnph38ehr8e4000v",
+              "type": "fadeOut",
+              "enabled": true,
+              "params": {
+                "direction": "out",
+                "duration": 0.5,
+                "easing": "linear",
+                "fromOpacity": 1,
+                "toOpacity": 0
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "out"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.860Z",
+          "text": "Act II",
+          "fontFamily": "Helvetica Neue",
+          "fontSizeValue": 72,
+          "colorValue": "#FFFFFF",
+          "bgColor": "transparent",
+          "alignValue": "center",
+          "bold": true,
+          "italic": false,
+          "x": 0,
+          "y": 0,
+          "opacityLevel": 1
+        }
+      ],
+      "createdAt": "2026-06-02T13:11:45.839Z"
+    },
+    {
+      "id": "track_mpwnph2nq2kegv0005",
+      "type": "shape",
+      "name": "Graphics",
+      "volume": 1,
+      "muted": false,
+      "solo": false,
+      "locked": false,
+      "visible": true,
+      "clips": [
+        {
+          "id": "clip_mpwnph2oq3brvl000o",
+          "type": "shape",
+          "name": "",
+          "asset": null,
+          "startTime": 0,
+          "inPoint": 0,
+          "outPoint": 5,
+          "muted": false,
+          "locked": false,
+          "visible": true,
+          "effects": [
+            {
+              "id": "fx_mpwnph2olflpc9000p",
+              "type": "fadeIn",
+              "enabled": true,
+              "params": {
+                "direction": "in",
+                "duration": 0.3,
+                "easing": "linear",
+                "fromOpacity": 0,
+                "toOpacity": 1
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "in"
+            },
+            {
+              "id": "fx_mpwnph2og6czbf000q",
+              "type": "fadeOut",
+              "enabled": true,
+              "params": {
+                "direction": "out",
+                "duration": 0.3,
+                "easing": "linear",
+                "fromOpacity": 1,
+                "toOpacity": 0
+              },
+              "createdAt": "2026-06-02T13:11:45.840Z",
+              "direction": "out"
+            }
+          ],
+          "createdAt": "2026-06-02T13:11:45.840Z",
+          "shapeType": "rectangle",
+          "x": 0,
+          "y": 900,
+          "width": 640,
+          "height": 80,
+          "fillColor": "#1A1A2E",
+          "strokeColorValue": "transparent",
+          "strokeWidthValue": 0,
+          "opacityLevel": 0.85,
+          "rotationDeg": 0,
+          "cornerRadius": 8
+        }
+      ],
+      "createdAt": "2026-06-02T13:11:45.839Z"
+    }
+  ],
+  "metadata": {},
+  "createdAt": "2026-06-02T13:11:45.837Z",
+  "updatedAt": "2026-06-02T13:11:45.839Z"
+}
