@@ -10,14 +10,28 @@ VideoForge provides a **Timeline Engine** as its core abstraction. You compose a
 
 ```
 Project
-├── Timeline          ← query engine (duration, fps, resolution)
+├── Timeline                  ← query engine (duration, fps, resolution)
 ├── Tracks[]
-│   └── Clips[]       ← VideoClip / AudioClip / ImageClip / TextClip / ShapeClip
-│       └── Effects[] ← FadeEffect / Transition / custom Effect
-└── Exporters         ← JSON / Premiere XML / FCPXML / MP4
+│   ├── Clips[]               ← VideoClip / AudioClip / ImageClip / TextClip / ShapeClip
+│   │   └── Effects[]         ← FadeEffect / Transition / custom Effect
+│   └── CaptionClip           ← Motion Typography Engine
+│       ├── CaptionSegments[]
+│       │   └── CaptionWords[]
+│       │       └── CaptionCharacters[]
+│       ├── CaptionAnimations[] ← 22 animation types
+│       ├── CaptionEffects[]    ← 19 visual effect types
+│       └── KeyframeSet         ← per-property interpolation
+│
+└── Export Pipeline
+    └── TimelineConverter     ← Project → IntermediateTimeline (ITR)
+        └── IntermediateTimeline
+            ├── PremiereXmlExporter  → .xml  (XMEML v5)
+            ├── FcpxmlExporter       → .fcpxml (FCPXML 1.10)
+            ├── EdlExporter          → .edl  (CMX3600)
+            └── JsonExporter         → .vfp  (VideoForge JSON)
 ```
 
-The MCP server is **not** part of this library — it acts as a thin layer that calls the library API.
+All exporters consume the **Intermediate Timeline Representation (ITR)** — never the Project directly. This single conversion path ensures consistent output across all formats and preserves unsupported features in a `vf:` namespace for round-trips.
 
 ---
 
@@ -75,6 +89,7 @@ project.reorderTracks([id1, id2, id3]);         // Project (chainable)
 await project.export({ type: 'json',    output: './out.vfp'     });
 await project.export({ type: 'premiere', output: './out.xml'    });
 await project.export({ type: 'fcpxml',  output: './out.fcpxml'  });
+await project.export({ type: 'edl',     output: './out.edl'     });
 await project.export({ type: 'mp4',     output: './out.mp4'     }); // requires FFmpeg
 
 // Persistence
@@ -91,10 +106,11 @@ const clone = Project.fromJSON(json);
 ### `Track`
 
 ```js
-const videoTrack = project.addTrack('video');
-const audioTrack = project.addTrack('audio');
-const textTrack  = project.addTrack('text');
-const shapeTrack = project.addTrack('shape');
+const videoTrack   = project.addTrack('video');
+const audioTrack   = project.addTrack('audio');
+const textTrack    = project.addTrack('text');
+const shapeTrack   = project.addTrack('shape');
+const captionTrack = project.addTrack('caption');
 
 // Clip factories (returns the created clip)
 const clip = videoTrack.addVideo('footage.mp4', { outPoint: 60 });
@@ -102,6 +118,13 @@ const clip = videoTrack.addVideo('footage.mp4', { outPoint: 60 });
               textTrack .addText('Hello World', { fontSizeValue: 48 });
               shapeTrack.addShape('rectangle', { width: 200, height: 100 });
               videoTrack.addImage('logo.png');
+
+// Caption clip with preset
+const caption = captionTrack.addCaption('Welcome back!', {
+  preset:              'hormozi',       // apply a built-in preset
+  maxWordsPerSegment:  3,
+  wordTimings:         [...],           // optional pre-parsed timing data
+});
 
 // Management
 track.getClip(id);       // Clip | undefined
@@ -258,20 +281,452 @@ tl.getTrackCount();
 
 ---
 
-### Exporters
+## Caption & Motion Typography Engine
 
-All exporters are available directly if you need lower-level access:
+VideoForge includes a professional motion typography system with four levels of granularity — every level is independently animatable.
+
+```
+CaptionClip
+└── CaptionSegment[]      ← one line / phrase on screen at a time
+    └── CaptionWord[]     ← per-word animations and karaoke fills
+        └── CaptionCharacter[] ← per-character scramble / stagger / spin
+```
+
+### Basic usage
 
 ```js
-import { JsonExporter, PremiereXmlExporter, FcpxmlExporter } from 'videoforge';
+const track = project.addTrack('caption');
 
-const exporter = new JsonExporter(project, { pretty: true });
-await exporter.export('./output/project.vfp');
+// Plain transcript
+const caption = track.addCaption('Welcome to VideoForge', {
+  outPoint: 5,
+  preset:   'hormozi',
+});
 
-// In-memory — no file written
-const obj = new JsonExporter(project).toObject();
-const str = new JsonExporter(project).toString();
+// Word-level timing for karaoke / highlight sync
+caption.buildKaraoke({ fillColor: '#FFD700' });
+
+// Highlight specific words
+caption.highlightKeywords(['VideoForge', 'caption'], '#FF4444');
 ```
+
+### Applying presets
+
+```js
+import { createPreset, PRESET_REGISTRY } from 'videoforge';
+
+caption.applyPreset('mrbeast');       // bold yellow words, pop animation
+caption.applyPreset('podcast');       // clean lower-third style
+caption.applyPreset('karaoke');       // progressive word fill
+caption.applyPreset('gaming');        // neon glow, glitch effect
+
+// All 10 built-in presets:
+// hormozi | mrbeast | podcast | news | documentary
+// karaoke | minimal | gaming | luxury | corporate
+console.log([...PRESET_REGISTRY.keys()]);
+```
+
+### Animations (22 types)
+
+```js
+import {
+  FadeAnimation, SlideAnimation, ScaleAnimation, RotateAnimation,
+  BounceAnimation, PopAnimation, PulseAnimation, ShakeAnimation,
+  WobbleAnimation, WaveAnimation, SwingAnimation, FlipAnimation,
+  TypewriterAnimation, KaraokeAnimation, RevealAnimation, ScrambleAnimation,
+  ElasticAnimation, GlitchAnimation, HighlightAnimation, ZoomAnimation,
+  BlurRevealAnimation, StaggerAnimation,
+  ANIMATION_TARGET, ANIMATION_TYPES,
+} from 'videoforge';
+
+caption.addAnimation(new SlideAnimation({
+  direction: 'up',
+  duration:  0.4,
+  target:    ANIMATION_TARGET.WORD,   // CLIP | SEGMENT | WORD | CHARACTER
+}));
+
+// Stagger: apply any animation with incremental per-element delay
+caption.addAnimation(new StaggerAnimation({
+  animation: new PopAnimation({ duration: 0.3 }),
+  staggerDelay: 0.05,   // seconds between each element
+  order: 'forward',     // forward | reverse | random | center | edges
+}));
+```
+
+### Visual effects (19 types)
+
+```js
+import {
+  GlowEffect, ShadowEffect, OutlineEffect, GradientEffect, NeonEffect,
+  GlassEffect, BlurEffect, MotionBlurEffect, BackgroundBoxEffect,
+  RoundedBoxEffect, HighlightEffect, UnderlineEffect, StrikeThroughEffect,
+  NoiseEffect, GrainEffect, ChromaticAberrationEffect, BloomEffect,
+  DistortionEffect, ReflectionEffect,
+} from 'videoforge';
+
+caption.addEffect(new GlowEffect({ color: '#FFD700', radius: 12, strength: 0.8 }));
+caption.addEffect(new OutlineEffect({ color: '#000000', width: 3 }));
+caption.addEffect(new BackgroundBoxEffect({ color: '#000000CC', padding: 12 }));
+```
+
+### Keyframe engine
+
+```js
+import { KeyframeSet, KEYFRAMEABLE_PROPERTIES, CAPTION_EASING } from 'videoforge';
+
+caption.addKeyframe('opacity', 0,   0);
+caption.addKeyframe('opacity', 0.5, 1);
+caption.addKeyframe('opacity', 4.5, 1);
+caption.addKeyframe('opacity', 5,   0);
+
+// 24 animatable properties, 14 easing curves
+// CAPTION_EASING: linear | easeIn | easeOut | easeInOut | spring | snap | overshoot | ...
+```
+
+### `CaptionStyle`
+
+```js
+import { CaptionStyle } from 'videoforge';
+
+const style = new CaptionStyle({
+  fontFamily:    'Montserrat',
+  fontSize:       80,
+  fontWeight:     900,
+  color:          '#FFFFFF',
+  strokeColor:    '#000000',
+  strokeWidth:    4,
+  letterSpacing:  2,
+  lineHeight:     1.3,
+  textTransform:  'uppercase',
+});
+
+caption.style = style;
+```
+
+### `CaptionLayout`
+
+```js
+import { CaptionLayout, ANCHOR_POINT, WRAP_MODE, SOCIAL_SAFE_ZONES } from 'videoforge';
+
+caption.layout = new CaptionLayout({
+  anchorPoint:  ANCHOR_POINT.BOTTOM_CENTER,
+  wrapMode:     WRAP_MODE.WORD,
+  maxWidth:     0.85,                        // fraction of canvas width
+  safeZone:     SOCIAL_SAFE_ZONES.TIKTOK,    // TikTok | Instagram | YouTube | Shorts
+  marginBottom: 0.1,
+});
+```
+
+### `MotionTypographyEngine`
+
+```js
+import { MotionTypographyEngine, SEGMENTATION_STRATEGY } from 'videoforge';
+
+const engine = new MotionTypographyEngine({ maxWordsPerSegment: 3 });
+
+const segments = engine.segmentTranscript(words, {
+  strategy: SEGMENTATION_STRATEGY.MAX_WORDS,  // MAX_WORDS | PUNCTUATION | TIME_GAP | SENTENCE | HYBRID
+});
+```
+
+---
+
+## Professional Interchange Export System
+
+VideoForge uses a **canonical Intermediate Timeline Representation (ITR)** as the single conversion point between the Project model and every export format. This means:
+
+- One conversion path — no format-specific Project traversal
+- Unsupported features are preserved in a `vf:` XML namespace for round-trips
+- Each exporter receives a fully-validated, format-independent data structure
+
+### Export pipeline
+
+```
+Project
+  └─► TimelineConverter.convert(project)
+        └─► IntermediateTimeline (ITR)
+              ├─► PremiereXmlExporter  → XMEML v5 .xml
+              ├─► FcpxmlExporter       → FCPXML 1.10 .fcpxml
+              ├─► EdlExporter          → CMX3600 .edl
+              └─► JsonExporter         → VideoForge .vfp
+```
+
+### Premiere Pro XML (XMEML v5)
+
+```js
+import { PremiereXmlExporter } from 'videoforge';
+
+const exporter = new PremiereXmlExporter(project, {
+  pretty:            true,   // indent output
+  validateInput:     true,   // run ITR validation before generating
+  validateOutput:    true,   // run structural XML validation after generating
+  includeVfMetadata: true,   // embed vf: namespace block for round-trip
+  sequenceName:      'Main Sequence',
+});
+
+// Write to disk
+await exporter.export('./output/project.xml');
+
+// In-memory string
+const xml = exporter.toString();
+```
+
+Generated structure:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="5">
+  <sequence id="seq_main">
+    <name>My Project</name>
+    <duration>900</duration>
+    <rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate>
+    <media>
+      <video>
+        <format>...</format>
+        <file id="asset_abc123">          <!-- deduplicated asset pool -->
+          <pathurl>file:///footage/clip.mp4</pathurl>
+          ...
+        </file>
+        <track>
+          <clipitem id="clip_xyz_video">  <!-- per-clip, references file by id -->
+            <start>0</start><end>150</end>
+            <in>0</in><out>150</out>
+            <filter>...</filter>          <!-- opacity / speed / motion filters -->
+          </clipitem>
+        </track>
+        <track>                           <!-- caption track → generator items -->
+          <generatoritem id="gen_...">
+            <effect><name>Text</name>...</effect>
+          </generatoritem>
+        </track>
+      </video>
+      <audio>...</audio>
+    </media>
+    <vf:metadata xmlns:vf="https://videoforge.dev/ns/1.0">
+      <vf:payload>...</vf:payload>        <!-- full caption/animation payload -->
+    </vf:metadata>
+  </sequence>
+</xmeml>
+```
+
+### Final Cut Pro XML (FCPXML 1.10)
+
+```js
+import { FcpxmlExporter } from 'videoforge';
+
+const exporter = new FcpxmlExporter(project, {
+  fcpxmlVersion:     '1.10',
+  pretty:            true,
+  validateInput:     true,
+  validateOutput:    true,
+  includeVfMetadata: true,
+  libraryName:       'My Library',
+  eventName:         'Rough Cut',
+});
+
+await exporter.export('./output/project.fcpxml');
+const xml = exporter.toString();
+```
+
+Generated structure:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r_seq_format" frameDuration="1/30s" width="1920" height="1080"/>
+    <asset id="asset_abc" src="file:///footage/main.mp4" duration="300/30s" hasVideo="1" hasAudio="1">
+      <media-rep kind="original-media" src="file:///footage/main.mp4"/>
+    </asset>
+    <effect id="r_effect_title" name="Basic Title" type="motion"/>
+  </resources>
+  <library name="My Library">
+    <event name="Rough Cut">
+      <project name="My Film" uid="proj_...">
+        <sequence format="r_seq_format" duration="900/30s" tcFormat="NDF">
+          <spine>
+            <clip name="main" ref="asset_abc" offset="0/30s" duration="300/30s">
+              <audio-clip .../>              <!-- connected audio -->
+              <title ref="r_effect_title" lane="-2" ...>   <!-- connected caption -->
+                <param name="Text">...
+                <text><text-style font="Helvetica Neue" fontSize="72">Hello</text-style></text>
+              </title>
+            </clip>
+            <gap name="Gap" offset="300/30s" duration="30/30s"/>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>
+```
+
+**Time format:** All times use FCPXML rational notation — `N/Ds` where `D` is the rate denominator. For 29.97fps: `1001/30000s`. For 24fps: `1/24s`.
+
+**Supported frame rates:** 23.976 · 24 · 25 · 29.97 · 30 · 50 · 59.94 · 60
+
+### CMX3600 EDL
+
+```js
+import { EdlExporter } from 'videoforge';
+
+const exporter = new EdlExporter(project, {
+  title:           'My Cut',
+  dropFrame:       null,    // auto-detect from fps (true for 29.97/59.94)
+  includeAudio:    true,    // emit AX audio events
+  includeComments: true,    // annotate unsupported features as * comments
+});
+
+await exporter.export('./output/project.edl');
+const edl = exporter.toString();
+```
+
+Generated output:
+
+```
+TITLE: My Cut
+FCM: NON-DROP FRAME
+
+* Generated by VideoForge EDL Exporter
+* Project: My Film | FPS: 30 | Resolution: 1920x1080
+
+001  clip_a   V    C        00:00:00:00 00:00:05:00 00:00:00:00 00:00:05:00
+* FROM CLIP NAME: clip_a.mp4
+
+002  clip_b   V    D 030    00:00:02:00 00:00:07:00 00:00:05:00 00:00:10:00
+* FROM CLIP NAME: clip_b.mp4
+
+003  narrat   A    C        00:00:00:00 00:00:20:00 00:00:00:00 00:00:20:00
+
+* CAPTION: "Welcome to VideoForge" [not representable in EDL]
+```
+
+### ITR — direct access
+
+Use the ITR directly when building custom exporters or inspection tools:
+
+```js
+import { TimelineConverter, InterchangeValidator } from 'videoforge';
+
+const converter = new TimelineConverter();
+const itr       = converter.convert(project);
+
+// Validate before exporting
+const validator = new InterchangeValidator();
+const result    = validator.validateTimeline(itr);
+if (!result.valid) console.error(result.errors);
+console.warn(result.warnings);
+
+// Inspect
+itr.getVideoTracks();    // TrackRepresentation[]
+itr.getAudioTracks();    // TrackRepresentation[]
+itr.getCaptionTracks();  // TrackRepresentation[]
+itr.getAllClips();        // ClipRepresentation[]
+itr.computeDuration();   // seconds
+itr.toJSON();            // plain object
+
+// Per-track clips
+for (const track of itr.getVideoTracks()) {
+  for (const clip of track.getSortedClips()) {
+    console.log(clip.timelineStart, '→', clip.timelineEnd, clip.assetId);
+  }
+}
+```
+
+### Time utilities
+
+```js
+import { TimeCode, PREMIERE_TICKS_PER_SECOND } from 'videoforge';
+
+const tc = new TimeCode(10.5, 29.97);
+
+tc.toSmpteNdf();          // '00:00:10:15'   NDF timecode
+tc.toSmpteDf();           // '00:00:10;15'   drop-frame timecode
+tc.toFcpRational();       // '315000/30000s' FCPXML rational
+tc.toPremiereTicks_s();   // '2667168000000' Premiere tick string
+
+TimeCode.fcpFrameDuration(23.976);   // '1001/24000s'
+TimeCode.premiereRate(29.97);        // { timebase: 30, ntsc: true }
+TimeCode.secondsToSmpte(3661, 30);   // '01:01:01:00'
+```
+
+### XML utilities
+
+```js
+import { XmlBuilder, escapeText, escapeAttr, XmlValidator } from 'videoforge';
+
+// Build XML fluently
+const b = new XmlBuilder({ pretty: true });
+b.declaration()
+ .open('root', { version: '1.0' })
+   .leaf('name', {}, 'My Project')
+   .comment('generated by VideoForge')
+ .close();
+console.log(b.toString());
+
+// Validate generated output
+const validator = new XmlValidator();
+const result = validator.validatePremiereXml(xml);    // { valid, errors[], warnings[] }
+const fcpResult = validator.validateFcpXml(fcpxml);
+const edlResult = validator.validateEdl(edl);
+```
+
+### Custom exporter using ITR
+
+```js
+import { Exporter, TimelineConverter, XmlBuilder } from 'videoforge';
+import { promises as fs } from 'fs';
+
+class DaVinciXmlExporter extends Exporter {
+  constructor(project, options = {}) {
+    super(project, options);
+    this._converter = new TimelineConverter();
+  }
+
+  async export(outputPath) {
+    const dest = this.resolveOutputPath(outputPath, '.xml');
+    await fs.mkdir(require('path').dirname(dest), { recursive: true });
+    await fs.writeFile(dest, this.toString(), 'utf8');
+    return dest;
+  }
+
+  toString() {
+    const itr = this._converter.convert(this.project);
+    const b   = new XmlBuilder();
+    b.declaration()
+     .open('davinci', { version: '1.0' });
+
+    for (const track of itr.getVideoTracks()) {
+      b.open('track', { name: track.name });
+      for (const clip of track.getSortedClips()) {
+        b.leaf('clip', {
+          start: String(clip.timelineStart),
+          end:   String(clip.timelineEnd),
+          src:   itr.getAsset(clip.assetId)?.path ?? '',
+        });
+      }
+      b.close();
+    }
+
+    b.close();
+    return b.toString();
+  }
+}
+```
+
+---
+
+### Exporters — summary
+
+| Exporter | Format | Status | Notes |
+|---|---|---|---|
+| `JsonExporter` | VideoForge `.vfp` | Full | Round-trip serialisation |
+| `PremiereXmlExporter` | XMEML v5 `.xml` | Full | File dedup, filters, transitions, captions |
+| `FcpxmlExporter` | FCPXML 1.10 `.fcpxml` | Full | Rational time, connected clips, titles |
+| `EdlExporter` | CMX3600 `.edl` | Full | NDF/DF timecodes, dissolves, audio AX events |
+| `Mp4Exporter` | MP4 `.mp4` | Skeleton | Requires FFmpeg + frame compositor |
 
 ---
 
@@ -323,12 +778,45 @@ src/
 │   ├── FadeEffect.js     Opacity ramp (in / out)
 │   └── Transition.js     Between-clip transition (dissolve, wipe, …)
 │
+├── captions/
+│   ├── CaptionClip.js           Root caption clip — extends Clip
+│   ├── CaptionSegment.js        One phrase visible at a time
+│   ├── CaptionWord.js           Per-word animations and karaoke
+│   ├── CaptionCharacter.js      Per-character granularity
+│   ├── CaptionStyle.js          Typography properties
+│   ├── CaptionLayout.js         Anchor, wrap mode, safe zones
+│   ├── CaptionKeyframe.js       Keyframe engine + 14 easing curves
+│   ├── CaptionAnimation.js      Base + 22 animation types
+│   ├── CaptionEffect.js         Base + 19 visual effect types
+│   ├── CaptionPreset.js         Base + 10 built-in presets
+│   ├── CaptionRenderer.js       Backend-agnostic render interface
+│   └── MotionTypographyEngine.js  Segmentation + orchestration
+│
+├── interchange/
+│   ├── IntermediateTimeline.js  Canonical ITR root
+│   ├── TimelineConverter.js     Project → ITR conversion
+│   ├── AssetReference.js        Media file descriptor
+│   ├── TrackRepresentation.js   Track in ITR
+│   ├── ClipRepresentation.js    Clip in ITR (all types)
+│   ├── EffectRepresentation.js  Effect in ITR
+│   ├── TransitionRepresentation.js
+│   ├── CaptionRepresentation.js  + WebVTT / title helpers
+│   ├── utils/
+│   │   ├── TimeCode.js           seconds ↔ SMPTE ↔ FCP rational ↔ ticks
+│   │   ├── XmlBuilder.js         Fluent stack-based XML builder
+│   │   ├── XmlEscaper.js         escapeText / escapeAttr / escapeUrl
+│   │   ├── XmlValidator.js       Structural validation (Premiere / FCP / EDL)
+│   │   └── XmlNamespaceManager.js  vf: namespace for round-trip metadata
+│   └── validation/
+│       └── InterchangeValidator.js  Full ITR validation pipeline
+│
 ├── exporters/
-│   ├── Exporter.js            Abstract base exporter
-│   ├── JsonExporter.js        VideoForge JSON (.vfp) — fully implemented
-│   ├── PremiereXmlExporter.js FCP7/Premiere XML — skeleton
-│   ├── FcpxmlExporter.js      FCPXML 1.10 — skeleton
-│   └── Mp4Exporter.js         FFmpeg render — skeleton
+│   ├── Exporter.js              Abstract base exporter
+│   ├── JsonExporter.js          VideoForge JSON (.vfp) — full
+│   ├── PremiereXmlExporter.js   XMEML v5 (.xml) — full
+│   ├── FcpxmlExporter.js        FCPXML 1.10 (.fcpxml) — full
+│   ├── EdlExporter.js           CMX3600 EDL (.edl) — full
+│   └── Mp4Exporter.js           FFmpeg render (.mp4) — skeleton
 │
 ├── preview/
 │   ├── PreviewPlayer.js    Playback driver (rAF / setInterval)
@@ -339,6 +827,13 @@ src/
 │   └── Constants.js       All enumerations and defaults
 │
 └── index.js               Public surface — re-exports everything
+
+tests/
+└── interchange/
+    ├── premiere.test.js   XMEML v5 output tests
+    ├── fcpxml.test.js     FCPXML 1.10 output tests
+    ├── roundtrip.test.js  ITR round-trip fidelity tests
+    └── captions.test.js   Caption export tests
 ```
 
 ---
@@ -347,17 +842,31 @@ src/
 
 ```js
 import {
-  TRACK_TYPES,      // video | audio | image | text | shape
-  CLIP_TYPES,       // video | audio | image | text | shape
-  ASSET_TYPES,      // video | audio | image | font | synthetic
-  EFFECT_TYPES,     // fadeIn | fadeOut | transition | colorCorrection | blur | custom
-  TRANSITION_TYPES, // crossDissolve | wipeLeft | wipeRight | wipeUp | wipeDown | slide | zoom | dipToBlack | dipToWhite
-  EXPORT_TYPES,     // json | premiere | fcpxml | mp4
-  SHAPE_TYPES,      // rectangle | ellipse | triangle | line | polygon | arrow
-  TEXT_ALIGN,       // left | center | right | justify
-  PLAYER_STATE,     // idle | playing | paused | buffering | ended
-  EASING,           // linear | easeIn | easeOut | easeInOut
-  DEFAULTS,         // { FPS, WIDTH, HEIGHT, SAMPLE_RATE, … }
+  TRACK_TYPES,        // video | audio | image | text | shape
+  CLIP_TYPES,         // video | audio | image | text | shape
+  ASSET_TYPES,        // video | audio | image | font | synthetic
+  EFFECT_TYPES,       // fadeIn | fadeOut | transition | colorCorrection | blur | custom
+  TRANSITION_TYPES,   // crossDissolve | wipeLeft | wipeRight | wipeUp | wipeDown | slide | zoom | dipToBlack | dipToWhite
+  EXPORT_TYPES,       // json | premiere | fcpxml | edl | mp4
+  SHAPE_TYPES,        // rectangle | ellipse | triangle | line | polygon | arrow
+  TEXT_ALIGN,         // left | center | right | justify
+  PLAYER_STATE,       // idle | playing | paused | buffering | ended
+  EASING,             // linear | easeIn | easeOut | easeInOut
+  DEFAULTS,           // { FPS, WIDTH, HEIGHT, SAMPLE_RATE, … }
+
+  // Caption
+  ANIMATION_TYPES,    // fade | slide | scale | rotate | bounce | pop | … (22 types)
+  ANIMATION_TARGET,   // CLIP | SEGMENT | WORD | CHARACTER
+  STAGGER_ORDER,      // FORWARD | REVERSE | RANDOM | CENTER | EDGES
+  CAPTION_EASING,     // linear | easeIn | … | spring | snap | overshoot (14 curves)
+  KEYFRAMEABLE_PROPERTIES,  // opacity | x | y | scaleX | scaleY | rotation | … (24)
+  WRAP_MODE,          // WORD | CHARACTER | NONE
+  ANCHOR_POINT,       // TOP_LEFT | TOP_CENTER | … | BOTTOM_RIGHT (9 positions)
+  SOCIAL_SAFE_ZONES,  // TIKTOK | INSTAGRAM | YOUTUBE | SHORTS | REELS | BROADCAST
+
+  // Interchange
+  ITR_VERSION,        // '1.0'
+  TRANSITION_ALIGNMENT, // center | startBlack | endBlack | custom
 } from 'videoforge';
 ```
 
@@ -377,46 +886,30 @@ class ChromaKeyEffect extends Effect {
 
   apply(context) {
     if (!this.enabled) return context;
-    // TODO: GPU shader or pixel-level chroma key.
+    // GPU shader or pixel-level chroma key
     return context;
   }
 }
 ```
 
-### Custom Exporter
+### Custom Exporter using ITR
 
-```js
-import { Exporter } from 'videoforge';
-import { promises as fs } from 'fs';
-
-class EdlExporter extends Exporter {
-  async export(outputPath) {
-    this.validate();
-    const dest = this.resolveOutputPath(outputPath, '.edl');
-    const edl  = this._buildEdl();
-    await fs.writeFile(dest, edl, 'utf8');
-    return dest;
-  }
-
-  _buildEdl() {
-    // CMX3600 EDL format
-    let lines = ['TITLE: ' + this.project.name, 'FCM: NON-DROP FRAME', ''];
-    // … build edit decision list from tracks …
-    return lines.join('\n');
-  }
-}
-```
+See [Custom exporter using ITR](#custom-exporter-using-itr) above for a full example.
 
 ---
 
 ## Roadmap
 
+- [x] Core Timeline Engine (Project / Track / Clip / Asset)
+- [x] Caption & Motion Typography Engine (22 animations, 19 effects, 10 presets)
+- [x] Intermediate Timeline Representation (ITR)
+- [x] Premiere Pro XMEML v5 exporter (full)
+- [x] FCPXML 1.10 exporter (full)
+- [x] CMX3600 EDL exporter (full)
 - [ ] Clip-type `fromJSON` registry (full round-trip deserialisation)
-- [ ] Premiere XML / FCPXML track-level generation
 - [ ] MP4 render pipeline (FFmpeg filter-complex builder)
-- [ ] `node-canvas` PreviewRenderer backend
+- [ ] `node-canvas` / WebGL `CaptionRenderer` backend
 - [ ] Color correction effect (LUT / curves)
-- [ ] Keyframe animation on any numeric property
 - [ ] MCP server layer (separate package: `videoforge-mcp`)
 
 ---
