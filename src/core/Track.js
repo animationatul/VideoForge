@@ -15,6 +15,7 @@ import AudioClip from '../clips/AudioClip.js';
 import ImageClip from '../clips/ImageClip.js';
 import TextClip from '../clips/TextClip.js';
 import ShapeClip from '../clips/ShapeClip.js';
+import CaptionClip from '../captions/CaptionClip.js';
 import { TRACK_TYPES, ASSET_TYPES } from '../utils/Constants.js';
 
 class Track {
@@ -124,6 +125,36 @@ class Track {
    */
   addShape(shapeType, options = {}) {
     const clip = new ShapeClip(shapeType, { startTime: this._nextStartTime(), ...options });
+    this._attach(clip);
+    return clip;
+  }
+
+  /**
+   * Add a caption clip with the full Motion Typography Engine attached.
+   *
+   * @param {string} [text='']      - Optional initial transcript text.
+   * @param {object} [options={}]   - Forwarded to CaptionClip constructor.
+   * @param {string} [options.preset]            - Preset name to apply immediately.
+   * @param {number} [options.maxWordsPerSegment] - Auto-segment config.
+   * @param {Array}  [options.wordTimings]        - Pre-parsed word timing data.
+   * @returns {CaptionClip}
+   */
+  addCaption(text = '', options = {}) {
+    const { preset, maxWordsPerSegment, wordTimings, ...clipOptions } = options;
+
+    const clip = new CaptionClip(null, {
+      startTime: this._nextStartTime(),
+      ...clipOptions,
+    });
+
+    if (text) {
+      clip.setTranscript(text, { maxWordsPerSegment, wordTimings });
+    }
+
+    if (preset) {
+      clip.applyPreset(preset);
+    }
+
     this._attach(clip);
     return clip;
   }

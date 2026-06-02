@@ -46,6 +46,66 @@ export { default as Mp4Exporter }         from './exporters/Mp4Exporter.js';
 export { default as PreviewPlayer }   from './preview/PreviewPlayer.js';
 export { default as PreviewRenderer } from './preview/PreviewRenderer.js';
 
+// ─── Caption & Motion Typography Engine ──────────────────────────────────────
+
+// Core caption classes
+export { default as CaptionClip }      from './captions/CaptionClip.js';
+export { default as CaptionSegment }   from './captions/CaptionSegment.js';
+export { default as CaptionWord }      from './captions/CaptionWord.js';
+export { default as CaptionCharacter } from './captions/CaptionCharacter.js';
+export { default as CaptionStyle }     from './captions/CaptionStyle.js';
+export { default as CaptionLayout }    from './captions/CaptionLayout.js';
+
+// Keyframe engine
+export {
+  default as CaptionKeyframe,
+  KeyframeTrack,
+  KeyframeSet,
+  KEYFRAMEABLE_PROPERTIES,
+  CAPTION_EASING,
+  computeEasing,
+  lerp,
+} from './captions/CaptionKeyframe.js';
+
+// Animation hierarchy (base + all 22 types)
+export {
+  default as CaptionAnimation,
+  FadeAnimation, SlideAnimation, ScaleAnimation, RotateAnimation,
+  BounceAnimation, PopAnimation, PulseAnimation, ShakeAnimation,
+  WobbleAnimation, WaveAnimation, SwingAnimation, FlipAnimation,
+  TypewriterAnimation, KaraokeAnimation, RevealAnimation, ScrambleAnimation,
+  ElasticAnimation, GlitchAnimation, HighlightAnimation, ZoomAnimation,
+  BlurRevealAnimation, StaggerAnimation,
+  ANIMATION_TYPES, ANIMATION_TARGET, STAGGER_ORDER, ANIMATION_REGISTRY,
+} from './captions/CaptionAnimation.js';
+
+// Effect hierarchy (base + all 19 types)
+export {
+  default as CaptionEffect,
+  GlowEffect, ShadowEffect, OutlineEffect, GradientEffect, NeonEffect,
+  GlassEffect, BlurEffect, MotionBlurEffect, BackgroundBoxEffect,
+  RoundedBoxEffect, HighlightEffect, UnderlineEffect, StrikeThroughEffect,
+  NoiseEffect, GrainEffect, ChromaticAberrationEffect, BloomEffect,
+  DistortionEffect, ReflectionEffect,
+  EFFECT_TYPES as CAPTION_EFFECT_TYPES, EFFECT_REGISTRY,
+} from './captions/CaptionEffect.js';
+
+// Presets (base + 10 built-in presets)
+export {
+  default as CaptionPreset,
+  HormoziPreset, MrBeastPreset, PodcastPreset, NewsPreset,
+  DocumentaryPreset, KaraokePreset, MinimalPreset, GamingPreset,
+  LuxuryPreset, CorporatePreset,
+  PRESET_REGISTRY, createPreset,
+} from './captions/CaptionPreset.js';
+
+// Layout constants
+export { WRAP_MODE, ANCHOR_POINT, SOCIAL_SAFE_ZONES } from './captions/CaptionLayout.js';
+
+// Rendering interfaces
+export { default as CaptionRenderer }       from './captions/CaptionRenderer.js';
+export { default as MotionTypographyEngine, SEGMENTATION_STRATEGY, TIMING_FORMAT } from './captions/MotionTypographyEngine.js';
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 export { default as IdGenerator } from './utils/IdGenerator.js';
 
