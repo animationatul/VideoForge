@@ -46,8 +46,8 @@ class TransitionRepresentation {
   static fromTransition(transition, fromClipId = '', toClipId = '') {
     return new TransitionRepresentation({
       id: transition.id,
-      type: _mapTransitionType(transition.type ?? transition.transitionType ?? 'crossDissolve'),
-      videoForgeType: transition.type ?? transition.transitionType ?? '',
+      type: _mapTransitionType(transition.transitionType ?? transition.type ?? 'crossDissolve'),
+      videoForgeType: transition.transitionType ?? transition.type ?? '',
       duration: transition.duration ?? 0.5,
       fromClipId,
       toClipId,

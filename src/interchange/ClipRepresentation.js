@@ -29,6 +29,7 @@ class ClipRepresentation {
    * @param {boolean} [data.reverse=false]        - Play in reverse.
    * @param {boolean} [data.mute=false]           - Mute audio on this clip.
    * @param {number}  [data.volume=1]             - Audio volume (0–2).
+   * @param {number}  [data.pan=0]               - Stereo pan for audio clips (-1 left, 0 center, +1 right).
    * @param {number}  [data.opacity=1]            - Video opacity (0–1).
    * @param {object}  [data.position={x:0,y:0}]  - Pixel position offset.
    * @param {object}  [data.scale={x:1,y:1}]     - Scale.
@@ -65,6 +66,7 @@ class ClipRepresentation {
     this.reverse       = data.reverse       ?? false;
     this.mute          = data.mute          ?? false;
     this.volume        = data.volume        ?? 1;
+    this.pan           = data.pan           ?? 0;
     this.opacity       = data.opacity       ?? 1;
     this.position      = data.position      ?? { x: 0, y: 0 };
     this.scale         = data.scale         ?? { x: 1, y: 1 };
@@ -126,6 +128,7 @@ class ClipRepresentation {
       reverse:       clip._reversed       ?? false,
       mute:          clip._muted          ?? false,
       volume:        clip._volumeLevel    ?? 1,
+      pan:           clip._panValue       ?? 0,
       opacity:       clip._opacityLevel   ?? 1,
       position:      (clip._x != null || clip._y != null)
                        ? { x: clip._x ?? 0, y: clip._y ?? 0 }
@@ -155,6 +158,7 @@ class ClipRepresentation {
       reverse:       this.reverse,
       mute:          this.mute,
       volume:        this.volume,
+      pan:           this.pan,
       opacity:       this.opacity,
       position:      this.position,
       scale:         this.scale,

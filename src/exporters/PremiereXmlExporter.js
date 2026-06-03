@@ -314,13 +314,41 @@ class PremiereXmlExporter extends Exporter {
         b.close(); // filter
       }
 
+      // Balance (pan) filter for audio clips
+      if (mediaType === 'audio' && clip.pan !== 0) {
+        b.open('filter');
+          b.open('effect');
+            b.leaf('name',       {}, 'Balance');
+            b.leaf('effectid',   {}, 'audiobalance');
+            b.leaf('effecttype', {}, 'audiolevels');
+            b.open('parameter');
+              b.leaf('parameterid', {}, 'balance');
+              b.leaf('name',  {}, 'Balance');
+              b.leaf('value', {}, String(Math.round(clip.pan * 100)));
+            b.close();
+          b.close();
+        b.close(); // filter
+      }
+
+      // Mute filter for audio clips
+      if (mediaType === 'audio' && clip.mute) {
+        b.open('filter');
+          b.open('effect');
+            b.leaf('name',       {}, 'Mute');
+            b.leaf('effectid',   {}, 'audimute');
+            b.leaf('effecttype', {}, 'audiolevels');
+          b.close();
+        b.close(); // filter
+      }
+
       // Opacity filter
       if (mediaType === 'video' && clip.opacity !== 1) {
         this._emitOpacityFilter(b, clip.opacity);
       }
 
-      // Speed / time remap filter
-      if (clip.speed !== 1) {
+      // Speed / time remap filter (negative value encodes reverse)
+      if (clip.speed !== 1 || clip.reverse) {
+        const speedVal = (clip.reverse ? -1 : 1) * clip.speed * 100;
         b.open('filter');
           b.open('effect');
             b.leaf('name',       {}, 'Time Remapping');
@@ -329,7 +357,7 @@ class PremiereXmlExporter extends Exporter {
             b.open('parameter');
               b.leaf('parameterid', {}, 'speed');
               b.leaf('name',  {}, 'Speed');
-              b.leaf('value', {}, String(clip.speed * 100));
+              b.leaf('value', {}, String(speedVal));
             b.close();
           b.close();
         b.close(); // filter
@@ -538,6 +566,16 @@ class PremiereXmlExporter extends Exporter {
           timelineStart:  c.timelineStart,
           timelineEnd:    c.timelineEnd,
           captionPayload: c.captionData?.videoForgePayload ?? null,
+        })),
+      })),
+      textTracks: itr.getTextTracks().map((t) => ({
+        id:    t.id,
+        name:  t.name,
+        clips: t.clips.map((c) => ({
+          id:                 c.id,
+          timelineStart:      c.timelineStart,
+          timelineEnd:        c.timelineEnd,
+          videoForgeMetadata: c.videoForgeMetadata,
         })),
       })),
     };

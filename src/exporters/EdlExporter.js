@@ -173,7 +173,10 @@ class EdlExporter extends Exporter {
           if (clip.speed !== 1) {
             lines.push(`* SPEED: ${clip.speed}x [not representable in EDL]`);
           }
-          if (clip.isCaption) {
+          if (clip.reverse) {
+            lines.push('* REVERSE: true [not representable in EDL]');
+          }
+          if (clip.captionData !== null) {
             lines.push(`* CAPTION: "${(clip.captionData?.flattenToText() ?? '').slice(0, 60)}" [not representable in EDL]`);
           }
         }
@@ -224,9 +227,35 @@ class EdlExporter extends Exporter {
           if (clip.mute) {
             lines.push(`* MUTED [excluded from record out]`);
           }
+          if (this.includeComments && clip.pan !== 0) {
+            lines.push(`* PAN: ${clip.pan} [not representable in EDL]`);
+          }
+          if (this.includeComments && clip.speed !== 1) {
+            lines.push(`* SPEED: ${clip.speed}x [not representable in EDL]`);
+          }
 
           lines.push('');
         }
+      }
+    }
+
+    // Caption tracks as comment annotations (not representable in CMX3600)
+    if (this.includeComments) {
+      const captionTracks = itr.getCaptionTracks();
+      if (captionTracks.length > 0) {
+        lines.push('* CAPTION TRACKS (not representable in CMX3600):');
+        for (const track of captionTracks) {
+          for (const clip of track.getSortedClips()) {
+            const text = clip.captionData?.flattenToText() ?? '';
+            lines.push(
+              `* CAPTION: "${text.slice(0, 60)}" ` +
+              `${this._tc(clip.timelineStart, fps, useDropFrame)}-` +
+              `${this._tc(clip.timelineEnd, fps, useDropFrame)} ` +
+              `[not representable in EDL]`,
+            );
+          }
+        }
+        lines.push('');
       }
     }
 

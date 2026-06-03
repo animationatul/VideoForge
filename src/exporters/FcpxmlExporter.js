@@ -111,6 +111,10 @@ class FcpxmlExporter extends Exporter {
         b.close(); // event
       b.close(); // library
 
+      if (this.includeVfMetadata) {
+        this._emitVfMetadataComment(b, itr);
+      }
+
     b.close(); // fcpxml
 
     return b.toString();
@@ -290,16 +294,26 @@ class FcpxmlExporter extends Exporter {
   }
 
   _clipHasChildren(clip, itr, videoTracks, audioTracks, captionTracks) {
-    // Check if there are any secondary tracks or if this clip has connected clips.
     if (videoTracks.length > 1) return true;
     if (audioTracks.length > 0 && itr.getVideoTracks().length > 0) return true;
     if (captionTracks.length > 0) return true;
     if (clip.effects?.length > 0) return true;
+    if (clip.speed !== 1) return true;
     return false;
   }
 
   _emitClipChildren(b, primaryClip, itr, videoTracks, audioTracks, captionTracks) {
     const fps = itr.fps;
+
+    // Speed time-map for the primary clip
+    if (primaryClip.speed !== 1) {
+      const tlDur  = new TimeCode(primaryClip.timelineDuration, fps).toFcpRational();
+      const srcDur = new TimeCode(primaryClip.timelineDuration * primaryClip.speed, fps).toFcpRational();
+      b.open('timeMap');
+        b.leaf('timept', { time: '0s', value: '0s', interp: 'linear' });
+        b.leaf('timept', { time: tlDur, value: srcDur, interp: 'linear' });
+      b.close();
+    }
 
     // Secondary video tracks → positive lanes
     for (let i = 1; i < videoTracks.length; i++) {
@@ -354,6 +368,7 @@ class FcpxmlExporter extends Exporter {
       offset,
       duration: dur,
       start,
+      ...(clip.opacity !== 1 ? { opacity: String(clip.opacity) } : {}),
     });
   }
 
@@ -365,6 +380,8 @@ class FcpxmlExporter extends Exporter {
     const dur    = new TimeCode(clip.timelineDuration, fps).toFcpRational();
     const start  = new TimeCode(clip.sourceStart, fps).toFcpRational();
 
+    const hasChildren = clip.volume !== 1 || clip.mute || clip.pan !== 0 || clip.speed !== 1;
+
     const attrs = {
       name:     escapeAttr(clip.name || (asset?.name ?? 'Audio')),
       ref:      escapeAttr(clip.assetId || asset?.id || ''),
@@ -372,12 +389,27 @@ class FcpxmlExporter extends Exporter {
       duration: dur,
       start,
       ...(lane != null ? { lane: String(lane) } : {}),
-      ...(clip.volume !== 1 ? { audioRole: 'dialogue' } : {}),
+      ...(hasChildren ? { audioRole: 'dialogue' } : {}),
     };
 
-    if (clip.volume !== 1) {
+    if (hasChildren) {
       b.open('audio-clip', attrs);
-        b.leaf('adjust-volume', { amount: String(this._linearToDb(clip.volume)) });
+        if (clip.mute) {
+          b.leaf('adjust-volume', { amount: '-96' });
+        } else if (clip.volume !== 1) {
+          b.leaf('adjust-volume', { amount: String(this._linearToDb(clip.volume)) });
+        }
+        if (clip.pan !== 0) {
+          b.leaf('adjust-panner', { amount: String(Math.round(clip.pan * 100)) });
+        }
+        if (clip.speed !== 1) {
+          const tlDur  = new TimeCode(clip.timelineDuration, fps).toFcpRational();
+          const srcDur = new TimeCode(clip.timelineDuration * clip.speed, fps).toFcpRational();
+          b.open('timeMap');
+            b.leaf('timept', { time: '0s', value: '0s', interp: 'linear' });
+            b.leaf('timept', { time: tlDur, value: srcDur, interp: 'linear' });
+          b.close();
+        }
       b.close();
     } else {
       b.leaf('audio-clip', attrs);
@@ -479,6 +511,8 @@ class FcpxmlExporter extends Exporter {
   // ─── Metadata block ───────────────────────────────────────────────────────────
 
   _emitVfMetadataComment(b, itr) {
+    const textTracks = itr.getTextTracks();
+    const allClips   = itr.getAllClips();
     const payload = {
       version:    itr.metadata?.videoForge?.version ?? '1.0',
       projectId:  itr.projectId,
@@ -486,6 +520,20 @@ class FcpxmlExporter extends Exporter {
       width:      itr.width,
       height:     itr.height,
       sampleRate: itr.sampleRate,
+      textTracks: textTracks.map((t) => ({
+        id:    t.id,
+        name:  t.name,
+        clips: t.clips.map((c) => ({
+          id:                 c.id,
+          timelineStart:      c.timelineStart,
+          timelineEnd:        c.timelineEnd,
+          videoForgeMetadata: c.videoForgeMetadata,
+        })),
+      })),
+      unsupportedFeatures: [
+        ...(allClips.some((c) => c.reverse) ? ['reverse'] : []),
+        ...(textTracks.length > 0 ? ['text-clips-as-metadata-only'] : []),
+      ],
     };
     b.comment(`VideoForge Export Metadata: ${JSON.stringify(payload)}`);
   }
