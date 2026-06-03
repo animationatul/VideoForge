@@ -207,6 +207,30 @@ class TimelineConverter {
     // Nested sequence reference
     if (clip.nestedSequenceId) meta.nestedSequenceId = clip.nestedSequenceId;
 
+    // TextClip-specific properties (type='text' without a segments array — not a CaptionClip)
+    if (clip.type === 'text' && !Array.isArray(clip.segments) && clip.text !== undefined) {
+      meta.text       = clip.text;
+      meta.fontFamily = clip._fontFamily;
+      meta.fontSize   = clip._fontSizeValue;
+      meta.color      = clip._colorValue;
+      meta.bgColor    = clip._bgColor;
+      meta.align      = clip._alignValue;
+      meta.bold       = clip._bold;
+      meta.italic     = clip._italic;
+    }
+
+    // ShapeClip-specific properties
+    if (clip.type === 'shape' && clip.shapeType !== undefined) {
+      meta.shapeType   = clip.shapeType;
+      meta.shapeWidth  = clip._width;
+      meta.shapeHeight = clip._height;
+      meta.fillColor   = clip._fillColor;
+      meta.strokeColor = clip._strokeColorValue;
+      meta.strokeWidth = clip._strokeWidthValue;
+      meta.rotationDeg = clip._rotationDeg;
+      meta.cornerRadius= clip._cornerRadius;
+    }
+
     return meta;
   }
 }
