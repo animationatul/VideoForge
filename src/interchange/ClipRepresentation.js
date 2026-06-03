@@ -109,6 +109,10 @@ class ClipRepresentation {
    * @returns {ClipRepresentation}
    */
   static fromClip(clip, effectReps = [], captionRep = null) {
+    // VideoClip/AudioClip store these on private _* properties because the
+    // public names (speed, volume, reverse, mute, opacity, position, scale,
+    // rotation) are getter/setter methods, not plain properties.
+    // We read the private backing fields with a safe fallback to the default.
     return new ClipRepresentation({
       id:            clip.id,
       type:          clip.type,
@@ -118,14 +122,18 @@ class ClipRepresentation {
       timelineEnd:   clip.endTime,
       sourceStart:   clip.inPoint,
       sourceEnd:     clip.outPoint,
-      speed:         clip.speed ?? 1,
-      reverse:       clip.reverse ?? false,
-      mute:          clip.mute ?? false,
-      volume:        clip.volume ?? 1,
-      opacity:       clip.opacity ?? 1,
-      position:      clip.position ?? { x: 0, y: 0 },
-      scale:         clip.scale ?? { x: 1, y: 1 },
-      rotation:      clip.rotation ?? 0,
+      speed:         clip._playbackRate   ?? 1,
+      reverse:       clip._reversed       ?? false,
+      mute:          clip._muted          ?? false,
+      volume:        clip._volumeLevel    ?? 1,
+      opacity:       clip._opacityLevel   ?? 1,
+      position:      (clip._x != null || clip._y != null)
+                       ? { x: clip._x ?? 0, y: clip._y ?? 0 }
+                       : { x: 0, y: 0 },
+      scale:         (clip._scaleX != null || clip._scaleY != null)
+                       ? { x: clip._scaleX ?? 1, y: clip._scaleY ?? 1 }
+                       : { x: 1, y: 1 },
+      rotation:      clip._rotation       ?? 0,
       crop:          clip.crop ?? { l: 0, r: 0, t: 0, b: 0 },
       anchor:        clip.anchor ?? { x: 0.5, y: 0.5 },
       effects:       effectReps,

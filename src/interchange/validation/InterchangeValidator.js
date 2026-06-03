@@ -6,6 +6,7 @@
  */
 
 import { CLIP_TYPES, TRACK_TYPES, ASSET_TYPES } from '../../utils/Constants.js';
+import { resolveFps, resolveWidth, resolveHeight } from '../../utils/FpsResolver.js';
 
 /**
  * @typedef {object} ValidationResult
@@ -33,13 +34,13 @@ class InterchangeValidator {
     if (!project.id) warnings.push('Project is missing an ID');
     if (!project.name) warnings.push('Project has no name');
 
-    const fps = project.fps ?? 30;
+    const fps = resolveFps(project);
     if (fps <= 0 || fps > 240) {
       errors.push(`Invalid project fps: ${fps}. Expected value in range (0, 240].`);
     }
 
-    const width  = project.width  ?? 1920;
-    const height = project.height ?? 1080;
+    const width  = resolveWidth(project);
+    const height = resolveHeight(project);
     if (width <= 0 || height <= 0) {
       errors.push(`Invalid project dimensions: ${width}×${height}`);
     }

@@ -127,6 +127,7 @@ export { default as MotionTypographyEngine, SEGMENTATION_STRATEGY, TIMING_FORMAT
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 export { default as IdGenerator } from './utils/IdGenerator.js';
+export { resolveFps, resolveWidth, resolveHeight, resolveSampleRate, resolveChannels, resolveSequenceParams } from './utils/FpsResolver.js';
 
 export {
   TRACK_TYPES,

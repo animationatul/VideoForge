@@ -17,6 +17,7 @@ import EffectRepresentation from './EffectRepresentation.js';
 import TransitionRepresentation from './TransitionRepresentation.js';
 import CaptionRepresentation from './CaptionRepresentation.js';
 import { ASSET_TYPES, CLIP_TYPES, TRACK_TYPES } from '../utils/Constants.js';
+import { resolveSequenceParams } from '../utils/FpsResolver.js';
 
 class TimelineConverter {
   /**
@@ -25,14 +26,15 @@ class TimelineConverter {
    * @returns {IntermediateTimeline}
    */
   convert(project) {
+    const seq = resolveSequenceParams(project);
     const itr = new IntermediateTimeline({
       projectId:  project.id,
-      name:       project.name    ?? 'Untitled',
-      fps:        project.fps     ?? 30,
-      width:      project.width   ?? 1920,
-      height:     project.height  ?? 1080,
-      sampleRate: project.sampleRate ?? 48000,
-      channels:   project.channels   ?? 2,
+      name:       project.name ?? 'Untitled',
+      fps:        seq.fps,
+      width:      seq.width,
+      height:     seq.height,
+      sampleRate: seq.sampleRate,
+      channels:   seq.channels,
       metadata: {
         videoForge: {
           version:     project.version    ?? '1.0',
@@ -88,7 +90,7 @@ class TimelineConverter {
         const uid = asset.uid ?? asset.id;
         if (seenUids.has(uid)) continue;
         seenUids.add(uid);
-        itr.addAsset(AssetReference.fromAsset(asset, project.fps ?? 30));
+        itr.addAsset(AssetReference.fromAsset(asset, itr.fps));
       }
     }
   }
