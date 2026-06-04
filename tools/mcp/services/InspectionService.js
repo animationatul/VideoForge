@@ -36,10 +36,12 @@ export class InspectionService {
     const allClips = itr.tracks.flatMap((t) => t.clips);
     const transitionCount = allClips.reduce((n, c) => n + c.transitions.length, 0);
     const effectCount = allClips.reduce((n, c) => n + c.effects.length, 0);
-    const captionClipCount = allClips.filter((c) => c.isCaption).length;
+    // isCaption checks type==='caption' which has no matching CLIP_TYPE constant;
+    // use captionData presence as the reliable caption-clip signal instead.
+    const captionClipCount = allClips.filter((c) => c.captionData !== null).length;
 
     const captionAnimationCount = allClips
-      .filter((c) => c.isCaption && c.captionData)
+      .filter((c) => c.captionData !== null)
       .reduce((n, c) => n + c.captionData.animations.length, 0);
 
     return {
@@ -124,6 +126,42 @@ export class InspectionService {
     };
   }
 
+  // ── Track ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Return detailed info for a single track by ID.
+   * Uses the live Project API rather than the ITR so track properties
+   * (volume, muted, solo, locked, visible) are always current.
+   *
+   * @param {string} projectId
+   * @param {string} trackId
+   * @returns {object}
+   */
+  inspectTrack(projectId, trackId) {
+    const project = this._projects.getProject(projectId);
+    const itr     = this._converter.convert(project);
+
+    const trackRep = itr.tracks.find((t) => t.id === trackId);
+    if (!trackRep) {
+      throw new Error(`Track not found: "${trackId}"`);
+    }
+
+    return {
+      id:        trackRep.id,
+      name:      trackRep.name,
+      type:      trackRep.type,
+      index:     trackRep.index,
+      muted:     trackRep.muted,
+      solo:      trackRep.solo,
+      locked:    trackRep.locked,
+      visible:   trackRep.visible,
+      volume:    trackRep.volume,
+      duration:  trackRep.duration,
+      clipCount: trackRep.clips.length,
+      clips:     trackRep.getSortedClips().map((c) => this._clipDetail(c)),
+    };
+  }
+
   // ── Clip ─────────────────────────────────────────────────────────────────────
 
   /**
@@ -178,7 +216,7 @@ export class InspectionService {
       effects: clip.effects.map((e) => ({ id: e.id, type: e.type, enabled: e.enabled })),
       transitionCount: clip.transitions.length,
       transitions: clip.transitions.map((t) => ({ id: t.id, type: t.type, duration: t.duration })),
-      hasCaption: clip.captionData !== null,
+      hasCaption: clip.captionData !== null && clip.captionData !== undefined,
       captionSummary: clip.captionData
         ? {
             transcript: clip.captionData.transcript?.slice(0, 120),

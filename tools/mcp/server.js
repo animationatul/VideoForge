@@ -14,11 +14,23 @@
  *         └── resources/ (read-only URI access to live state)
  *
  * The MCP SDK is only referenced in this file and resources/index.js.
- * Services and tools have no dependency on the MCP SDK, which keeps them
+ * Services and tools have no dependency on the MCP SDK, keeping them
  * portable and independently testable.
+ *
+ * Phase tracker
+ * ─────────────
+ * ✅ Phase 1 — Track & Clip Factory        (8 tools)
+ * ⬜ Phase 2 — Clip Editing Operations
+ * ⬜ Phase 3 — Media Controls per Type
+ * ⬜ Phase 4 — Caption Engine Core
+ * ⬜ Phase 5 — Caption Engine Advanced
+ * ⬜ Phase 6 — MP4 Export Pipeline
+ * ⬜ Phase 7 — Validation & Quality
+ * ⬜ Phase 8 — Regression Extension
+ * ⬜ Phase 9 — Discovery APIs
  */
 
-import { Server }              from '@modelcontextprotocol/sdk/server/index.js';
+import { Server }               from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   ListToolsRequestSchema,
@@ -27,28 +39,41 @@ import {
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
-import { StorageService }    from './services/StorageService.js';
-import { ProjectService }    from './services/ProjectService.js';
-import { InspectionService } from './services/InspectionService.js';
-import { ExportService }     from './services/ExportService.js';
-import { ValidationService } from './services/ValidationService.js';
-import { RegressionService } from './services/RegressionService.js';
+import { StorageService }     from './services/StorageService.js';
+import { ProjectService }     from './services/ProjectService.js';
+import { InspectionService }  from './services/InspectionService.js';
+import { ExportService }      from './services/ExportService.js';
+import { ValidationService }  from './services/ValidationService.js';
+import { RegressionService }  from './services/RegressionService.js';
+import { TrackService }       from './services/TrackService.js';       // Phase 1
+import { ClipService }        from './services/ClipService.js';        // Phase 1
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
 import { ExportParser } from './parsers/ExportParser.js';
 
-// ── Tools ─────────────────────────────────────────────────────────────────────
+// ── Tools — Phase 0 (original) ────────────────────────────────────────────────
 
-import * as createProject    from './tools/create_project.js';
-import * as loadProject      from './tools/load_project.js';
-import * as inspectProject   from './tools/inspect_project.js';
-import * as exportPremiere   from './tools/export_premiere.js';
-import * as exportFcpxml     from './tools/export_fcpxml.js';
-import * as exportEdl        from './tools/export_edl.js';
-import * as inspectExport    from './tools/inspect_export.js';
-import * as validateExport   from './tools/validate_export.js';
-import * as runRegression    from './tools/run_regression_test.js';
+import * as createProject  from './tools/create_project.js';
+import * as loadProject    from './tools/load_project.js';
+import * as inspectProject from './tools/inspect_project.js';
+import * as exportPremiere from './tools/export_premiere.js';
+import * as exportFcpxml   from './tools/export_fcpxml.js';
+import * as exportEdl      from './tools/export_edl.js';
+import * as inspectExport  from './tools/inspect_export.js';
+import * as validateExport from './tools/validate_export.js';
+import * as runRegression  from './tools/run_regression_test.js';
+
+// ── Tools — Phase 1 (Track & Clip Factory) ────────────────────────────────────
+
+import * as addTrack      from './tools/add_track.js';
+import * as removeTrack   from './tools/remove_track.js';
+import * as reorderTracks from './tools/reorder_tracks.js';
+import * as inspectTrack  from './tools/inspect_track.js';
+import * as addClip       from './tools/add_clip.js';
+import * as removeClip    from './tools/remove_clip.js';
+import * as inspectClip   from './tools/inspect_clip.js';
+import * as listProjects  from './tools/list_projects.js';
 
 // ── Resources ─────────────────────────────────────────────────────────────────
 
@@ -58,18 +83,17 @@ import { registerResources } from './resources/index.js';
 // Service graph (pure dependency injection — no singletons leaked out)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const storage         = new StorageService();
-const projectService  = new ProjectService(storage);
+const storage           = new StorageService();
+const projectService    = new ProjectService(storage);
 const inspectionService = new InspectionService(projectService);
-const exportService   = new ExportService(projectService, storage);
+const exportService     = new ExportService(projectService, storage);
 const validationService = new ValidationService(projectService, storage);
 const regressionService = new RegressionService(
-  projectService,
-  exportService,
-  validationService,
-  inspectionService,
+  projectService, exportService, validationService, inspectionService,
 );
-const exportParser    = new ExportParser();
+const trackService      = new TrackService(projectService);   // Phase 1
+const clipService       = new ClipService(projectService);    // Phase 1
+const exportParser      = new ExportParser();
 
 /** Services bag passed into every tool handler. */
 const services = {
@@ -79,6 +103,8 @@ const services = {
   exportService,
   validationService,
   regressionService,
+  trackService,
+  clipService,
   exportParser,
 };
 
@@ -87,6 +113,7 @@ const services = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALL_TOOLS = [
+  // Phase 0 — Foundation
   createProject,
   loadProject,
   inspectProject,
@@ -96,6 +123,16 @@ const ALL_TOOLS = [
   inspectExport,
   validateExport,
   runRegression,
+
+  // Phase 1 — Track & Clip Factory
+  addTrack,
+  removeTrack,
+  reorderTracks,
+  inspectTrack,
+  addClip,
+  removeClip,
+  inspectClip,
+  listProjects,
 ];
 
 /** @type {Map<string, Function>} */
@@ -108,16 +145,14 @@ const toolHandlers = new Map(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'videoforge-mcp', version: '1.0.0' },
+  { name: 'videoforge-mcp', version: '1.1.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
-// List tools
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: ALL_TOOLS.map((t) => t.definition),
 }));
 
-// Call tool
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -142,7 +177,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Resources
 registerResources(server, { inspectionService, exportService });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,4 +186,4 @@ registerResources(server, { inspectionService, exportService });
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error('[VideoForge MCP] Server running on stdio');
+console.error('[VideoForge MCP] Server running on stdio — 17 tools active');
