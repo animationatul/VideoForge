@@ -284,3 +284,39 @@ describe('Mp4Exporter integration — embedded audio (FFprobe auto-detection)', 
     expect(await probeAudioStream(outFile)).not.toBeNull();
   });
 });
+
+// ── onProgress callback value range ───────────────────────────────────────────
+// Regression test for Blocker #3 — onProgress was passing a 0-1 fraction
+// instead of a 0-100 percentage.
+
+describe('Mp4Exporter onProgress — percentage values', () => {
+  ffmpegTest('onProgress receives values in 0-100 range (not 0-1 fraction)', async () => {
+    const outFile = path.join(OUT, 'progress_check.mp4');
+    const p = new Project({ name: 'T', fps: 30, width: 320, height: 240 });
+    p.addTrack('video').addVideo(FIXTURE_NO_AUDIO, { inPoint: 0, outPoint: 3 });
+
+    const received = [];
+    const exporter = new Mp4Exporter(p, {
+      preset: 'ultrafast',
+      crf: 40,
+      onProgress: (pct) => received.push(pct),
+    });
+
+    await exporter.export(outFile);
+
+    // Must have received at least one progress update from FFmpeg.
+    expect(received.length).toBeGreaterThan(0);
+
+    // Every value must be a percentage (≥ 1 when non-trivial progress has been made),
+    // not a fraction.  A 3-second clip at ultrafast encodes fast enough that we
+    // expect at least one value > 1 (which would never happen with a 0-1 fraction).
+    const maxReceived = Math.max(...received);
+    expect(maxReceived).toBeGreaterThan(1);
+
+    // All values must be within the 0-100 range.
+    for (const v of received) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
+  });
+});

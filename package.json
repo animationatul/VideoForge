@@ -1,6 +1,6 @@
 {
   "name": "videoforge",
-  "version": "1.0.0",
+  "version": "0.9.0-alpha.1",
   "description": "Foundation library for building video editors, automation tools, and AI-powered editing systems.",
   "type": "module",
   "main": "./src/index.js",
@@ -9,13 +9,20 @@
       "import": "./src/index.js"
     }
   },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "lint": "eslint src/",
-    "example": "node examples/basic-usage.js"
+    "example": "node examples/basic-usage.js",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "video",
@@ -28,7 +35,7 @@
     "fcpxml",
     "nle"
   ],
-  "author": "",
+  "author": "Atul Taware",
   "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0"

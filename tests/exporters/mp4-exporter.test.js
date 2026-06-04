@@ -489,6 +489,7 @@ describe('Mp4Exporter', () => {
     p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 5 });
     const exporter = new Mp4Exporter(p);
     // Override internals to avoid filesystem and process side-effects.
+    exporter._detectEmbeddedAudio = async () => {};
     exporter._runFfmpeg  = async () => {};
     exporter._getFileSize = async () => 99999;
     const result = await exporter.export('/tmp/vf-test-output.mp4');
@@ -501,6 +502,7 @@ describe('Mp4Exporter', () => {
     const p = new Project({ fps: 30 });
     p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 7 });
     const exporter = new Mp4Exporter(p);
+    exporter._detectEmbeddedAudio = async () => {};
     exporter._runFfmpeg   = async () => {};
     exporter._getFileSize = async () => 0;
     const result = await exporter.export('/tmp/vf-dur.mp4');
@@ -511,6 +513,7 @@ describe('Mp4Exporter', () => {
     const p = new Project({ fps: 30 });
     p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 5 });
     const exporter = new Mp4Exporter();
+    exporter._detectEmbeddedAudio = async () => {};
     exporter._runFfmpeg   = async () => {};
     exporter._getFileSize = async () => 42;
     const result = await exporter.export(p, { output: '/tmp/vf-standalone.mp4' });
@@ -523,13 +526,13 @@ describe('Mp4Exporter', () => {
     p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 5 });
     const progressValues = [];
     const exporter = new Mp4Exporter(p, { onProgress: v => progressValues.push(v) });
+    exporter._detectEmbeddedAudio = async () => {};
     // Simulate ffmpeg emitting a progress line via the progress parser path
     exporter._runFfmpeg = async (args, dur) => {
-      // Directly invoke the callback as the real implementation would
-      if (exporter.onProgress) exporter.onProgress(0.5);
+      if (exporter.onProgress) exporter.onProgress(50);
     };
     exporter._getFileSize = async () => 0;
     await exporter.export('/tmp/vf-progress.mp4');
-    expect(progressValues).toContain(0.5);
+    expect(progressValues).toContain(50);
   });
 });

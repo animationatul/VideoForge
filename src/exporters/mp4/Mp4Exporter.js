@@ -178,7 +178,7 @@ class Mp4Exporter extends Exporter {
         for (const line of chunk.toString().split('\n')) {
           const progress = parser.parse(line);
           if (progress && this.onProgress) {
-            this.onProgress(progress.progress);
+            this.onProgress(progress.progress * 100);
           }
         }
       });

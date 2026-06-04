@@ -266,6 +266,11 @@ class Project {
         ExporterClass = FcpxmlExporter;
         break;
       }
+      case EXPORT_TYPES.EDL: {
+        const { default: EdlExporter } = await import('../exporters/EdlExporter.js');
+        ExporterClass = EdlExporter;
+        break;
+      }
       case EXPORT_TYPES.MP4: {
         const { default: Mp4Exporter } = await import('../exporters/Mp4Exporter.js');
         ExporterClass = Mp4Exporter;
