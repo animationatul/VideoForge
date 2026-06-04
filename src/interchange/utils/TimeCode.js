@@ -63,7 +63,15 @@ class TimeCode {
 
   static fromFrames(frames, fps = 30) {
     const rate = resolveRate(fps);
-    const seconds = (frames * rate.den) / rate.num;
+    // Divide by the INTEGER nominal fps (e.g. 30 for 29.97, 60 for 59.94) rather than
+    // the exact rational rate. This ensures that a frame count produced by toFrames()
+    // round-trips back to the original seconds value, because toFrames() also rounds
+    // to the same integer fps grid. Using the exact rational (frames * den / num) would
+    // introduce a systematic 0.1% bias for every NTSC rate (e.g. 150 * 1001/30000 = 5.005
+    // instead of 5.000). Exporters never call fromFrames — they convert seconds directly —
+    // so FCPXML and Premiere rational-time accuracy is unaffected.
+    const nominalFps = Math.round(rate.num / rate.den);
+    const seconds = frames / nominalFps;
     return new TimeCode(seconds, fps);
   }
 
