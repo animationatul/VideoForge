@@ -18,7 +18,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
+import { promisify } from 'util';
 import Exporter from '../Exporter.js';
 import TimelineConverter from '../../interchange/TimelineConverter.js';
 import FFmpegCommandBuilder from './FFmpegCommandBuilder.js';
@@ -87,6 +88,7 @@ class Mp4Exporter extends Exporter {
     await fs.mkdir(path.dirname(dest), { recursive: true });
 
     const itr  = new TimelineConverter().convert(this.project);
+    await this._detectEmbeddedAudio(itr);
     const args = new FFmpegCommandBuilder(itr, this._encoderOpts()).build(dest);
 
     await this._runFfmpeg(args, itr.duration);
@@ -111,6 +113,44 @@ class Mp4Exporter extends Exporter {
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * For each video asset in the ITR whose audioChannels is unknown (0), probe
+   * the source file with ffprobe and update audioChannels in-place.
+   * Silently skips assets whose files are missing or where ffprobe fails.
+   * @param {import('../../interchange/IntermediateTimeline.js').default} itr
+   */
+  async _detectEmbeddedAudio(itr) {
+    const execFileAsync = promisify(execFile);
+    for (const asset of itr.assets) {
+      if (!asset.isVideo || asset.audioChannels > 0 || !asset.path) continue;
+      const channels = await this._probeAudioChannels(asset.path, execFileAsync);
+      if (channels > 0) asset.audioChannels = channels;
+    }
+  }
+
+  /**
+   * Run ffprobe on a file and return the channel count of its first audio stream.
+   * Returns 0 if the file has no audio or if ffprobe cannot be executed.
+   * @param {string} filePath
+   * @param {Function} execFileAsync
+   * @returns {Promise<number>}
+   */
+  async _probeAudioChannels(filePath, execFileAsync) {
+    try {
+      const { stdout } = await execFileAsync('ffprobe', [
+        '-v', 'error',
+        '-select_streams', 'a:0',
+        '-show_entries', 'stream=channels',
+        '-of', 'csv=p=0',
+        filePath,
+      ]);
+      const n = parseInt(stdout.trim(), 10);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  }
 
   _encoderOpts() {
     return {

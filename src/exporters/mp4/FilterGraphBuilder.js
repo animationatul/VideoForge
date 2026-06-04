@@ -5,6 +5,14 @@
  *
  * V1 scope: trim (via input-side seeking), speed, reverse, fadeIn, fadeOut,
  * volume, mute.  Gaps between clips are not padded — clips play back-to-back.
+ *
+ * Embedded audio: video clips whose asset has audioChannels > 0 contribute
+ * their :a stream from the same input.  Embedded audio segments are concatenated
+ * in timeline order, then mixed with any explicit audio-track clips via amix.
+ *
+ * V1 limitation: if only SOME video clips in a sequence have embedded audio,
+ * the embedded-audio concat will be shorter than the video; silent gaps are
+ * not padded.
  */
 
 class FilterGraphBuilder {
@@ -30,43 +38,59 @@ class FilterGraphBuilder {
     const audioClips = this._itr.getAudioTracks()
       .flatMap(t => t.getSortedClips());
 
-    const inputArgs  = [];
+    const inputArgs   = [];
     const filterParts = [];
     let inputIdx = 0;
 
-    // ── Video segments ────────────────────────────────────────────────────────
+    // ── Video segments + embedded audio where available ───────────────────────
 
-    const vLabels = [];
+    const vLabels    = [];
+    const embALabels = [];  // audio labels sourced from video clip inputs
+
     for (const clip of videoClips) {
       const asset = this._itr.getAsset(clip.assetId);
       if (!asset) continue;
 
       inputArgs.push(...this._inputFlags(clip, asset.path));
 
-      const label = `v${vLabels.length}`;
-      const filters = this._videoFilters(clip);
-      filterParts.push(`[${inputIdx}:v]${filters.join(',')}[${label}]`);
-      vLabels.push(`[${label}]`);
+      // Video filter chain
+      const vLabel = `v${vLabels.length}`;
+      filterParts.push(
+        `[${inputIdx}:v]${this._videoFilters(clip).join(',')}[${vLabel}]`,
+      );
+      vLabels.push(`[${vLabel}]`);
+
+      // Audio stream from the same input (only when asset carries audio)
+      if (asset.audioChannels > 0) {
+        const vaLabel = `va${embALabels.length}`;
+        filterParts.push(
+          `[${inputIdx}:a]${this._audioFilters(clip).join(',')}[${vaLabel}]`,
+        );
+        embALabels.push(`[${vaLabel}]`);
+      }
+
       inputIdx++;
     }
 
-    // ── Audio segments ────────────────────────────────────────────────────────
+    // ── Explicit audio-track segments ─────────────────────────────────────────
 
-    const aLabels = [];
+    const expALabels = [];
+
     for (const clip of audioClips) {
       const asset = this._itr.getAsset(clip.assetId);
       if (!asset) continue;
 
       inputArgs.push(...this._inputFlags(clip, asset.path));
 
-      const label = `a${aLabels.length}`;
-      const filters = this._audioFilters(clip);
-      filterParts.push(`[${inputIdx}:a]${filters.join(',')}[${label}]`);
-      aLabels.push(`[${label}]`);
+      const aLabel = `a${expALabels.length}`;
+      filterParts.push(
+        `[${inputIdx}:a]${this._audioFilters(clip).join(',')}[${aLabel}]`,
+      );
+      expALabels.push(`[${aLabel}]`);
       inputIdx++;
     }
 
-    // ── Concat / mix ──────────────────────────────────────────────────────────
+    // ── Video: concat or pass through ─────────────────────────────────────────
 
     let videoMap = null;
     if (vLabels.length > 1) {
@@ -78,14 +102,30 @@ class FilterGraphBuilder {
       videoMap = vLabels[0];
     }
 
-    let audioMap = null;
-    if (aLabels.length > 1) {
+    // ── Audio: concat embedded segments, then mix everything ──────────────────
+
+    const allALabels = [];
+
+    if (embALabels.length > 1) {
+      // Sequential embedded audio (from video clips) — concatenate in order
       filterParts.push(
-        `${aLabels.join('')}amix=inputs=${aLabels.length}:duration=longest[aout]`,
+        `${embALabels.join('')}concat=n=${embALabels.length}:v=0:a=1[embaout]`,
+      );
+      allALabels.push('[embaout]');
+    } else if (embALabels.length === 1) {
+      allALabels.push(embALabels[0]);
+    }
+
+    allALabels.push(...expALabels);
+
+    let audioMap = null;
+    if (allALabels.length > 1) {
+      filterParts.push(
+        `${allALabels.join('')}amix=inputs=${allALabels.length}:duration=longest[aout]`,
       );
       audioMap = '[aout]';
-    } else if (aLabels.length === 1) {
-      audioMap = aLabels[0];
+    } else if (allALabels.length === 1) {
+      audioMap = allALabels[0];
     }
 
     return {
@@ -98,7 +138,7 @@ class FilterGraphBuilder {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  /** Build -ss/-t/-i flags for one clip. */
+  /** Build -ss / -t / -i flags for one clip. */
   _inputFlags(clip, filePath) {
     const args = ['-ss', String(clip.sourceStart)];
     const srcDur = clip.sourceEnd - clip.sourceStart;
@@ -109,7 +149,7 @@ class FilterGraphBuilder {
     return args;
   }
 
-  /** Filter chain for a video clip. */
+  /** Filter chain for a video stream. */
   _videoFilters(clip) {
     const srcDur = clip.sourceEnd - clip.sourceStart;
     const filters = ['setpts=PTS-STARTPTS'];
@@ -140,7 +180,10 @@ class FilterGraphBuilder {
     return filters;
   }
 
-  /** Filter chain for an audio clip. */
+  /**
+   * Filter chain for an audio stream.
+   * Used for both explicit AudioClip tracks and embedded audio from VideoClips.
+   */
   _audioFilters(clip) {
     const srcDur = clip.sourceEnd - clip.sourceStart;
     const filters = ['asetpts=PTS-STARTPTS'];

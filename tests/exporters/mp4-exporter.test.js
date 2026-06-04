@@ -319,6 +319,159 @@ describe('FFmpegCommandBuilder', () => {
   });
 });
 
+// ── FilterGraphBuilder — embedded audio from video clips ──────────────────────
+
+describe('FilterGraphBuilder — embedded audio', () => {
+  function videoWithAudio(opts = {}) {
+    const p = new Project({ fps: 30 });
+    const clip = p.addTrack('video').addVideo('/v.mp4', {
+      inPoint: opts.inPoint ?? 0,
+      outPoint: opts.outPoint ?? 10,
+    });
+    clip.asset.audioChannels = 2;   // simulate a video file with embedded stereo audio
+    if (opts.configure) opts.configure(clip);
+    return p;
+  }
+
+  test('video clip with audioChannels=2 generates [i:a] filter chain', () => {
+    const graph = buildGraph(videoWithAudio());
+    // The filter complex should reference both :v and :a from input 0
+    expect(graph.filterComplex).toMatch(/\[0:v\]/);
+    expect(graph.filterComplex).toMatch(/\[0:a\]/);
+  });
+
+  test('video clip with audioChannels=2 produces a non-null audioMap', () => {
+    const graph = buildGraph(videoWithAudio());
+    expect(graph.audioMap).toBeTruthy();
+  });
+
+  test('video clip without embedded audio has null audioMap', () => {
+    // Default: audioChannels = 0 (not set)
+    const graph = buildGraph(videoProject());
+    expect(graph.audioMap).toBeNull();
+  });
+
+  test('single embedded-audio clip: audioMap is [va0]', () => {
+    const graph = buildGraph(videoWithAudio());
+    expect(graph.audioMap).toBe('[va0]');
+  });
+
+  test('two embedded-audio clips: concat=v=0:a=1 is emitted and audioMap is [embaout]', () => {
+    const p = new Project({ fps: 30 });
+    const vt = p.addTrack('video');
+    const c1 = vt.addVideo('/a.mp4', { inPoint: 0, outPoint: 5 });
+    const c2 = vt.addVideo('/b.mp4', { inPoint: 0, outPoint: 5 });
+    c1.asset.audioChannels = 2;
+    c2.asset.audioChannels = 2;
+    const graph = buildGraph(p);
+    expect(graph.filterComplex).toContain('concat=n=2:v=0:a=1');
+    expect(graph.audioMap).toBe('[embaout]');
+  });
+
+  test('embedded audio + explicit audio track: amix is emitted', () => {
+    const p = new Project({ fps: 30 });
+    const clip = p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 10 });
+    clip.asset.audioChannels = 2;
+    p.addTrack('audio').addAudio('/music.wav', { inPoint: 0, outPoint: 10 });
+    const graph = buildGraph(p);
+    expect(graph.filterComplex).toContain('amix=inputs=2');
+    expect(graph.audioMap).toBe('[aout]');
+  });
+
+  test('embedded audio inherits speed filter (atempo)', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.speed(2),
+    }));
+    expect(graph.filterComplex).toContain('atempo=2');
+  });
+
+  test('embedded audio inherits reverse filter (areverse)', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.reverse(true),
+    }));
+    expect(graph.filterComplex).toContain('areverse');
+  });
+
+  test('embedded audio inherits fadeIn (afade=t=in)', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.fadeIn(2),
+    }));
+    expect(graph.filterComplex).toContain('afade=t=in:st=0:d=2');
+  });
+
+  test('embedded audio inherits fadeOut (afade=t=out)', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.fadeOut(2),
+    }));
+    expect(graph.filterComplex).toContain('afade=t=out:');
+  });
+
+  test('embedded audio inherits mute → volume=0', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.mute(),
+    }));
+    expect(graph.filterComplex).toContain('volume=0');
+  });
+
+  test('embedded audio inherits volume level', () => {
+    const graph = buildGraph(videoWithAudio({
+      configure: clip => clip.volume(0.5),
+    }));
+    expect(graph.filterComplex).toContain('volume=0.5');
+  });
+
+  test('_probeAudioChannels returns 0 for a non-existent file', async () => {
+    const exporter = new Mp4Exporter();
+    const execFileAsync = async () => { throw new Error('ENOENT'); };
+    const n = await exporter._probeAudioChannels('/nonexistent/file.mp4', execFileAsync);
+    expect(n).toBe(0);
+  });
+
+  test('_probeAudioChannels returns channel count from ffprobe stdout', async () => {
+    const exporter = new Mp4Exporter();
+    const execFileAsync = async () => ({ stdout: '2\n', stderr: '' });
+    const n = await exporter._probeAudioChannels('/some/file.mp4', execFileAsync);
+    expect(n).toBe(2);
+  });
+
+  test('_probeAudioChannels returns 0 when stdout is empty (no audio stream)', async () => {
+    const exporter = new Mp4Exporter();
+    const execFileAsync = async () => ({ stdout: '', stderr: '' });
+    const n = await exporter._probeAudioChannels('/silent.mp4', execFileAsync);
+    expect(n).toBe(0);
+  });
+
+  test('_detectEmbeddedAudio updates asset.audioChannels when ffprobe finds audio', async () => {
+    const p = new Project({ fps: 30 });
+    p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 5 });
+    const itr = toItr(p);
+
+    const exporter = new Mp4Exporter(p);
+    // Stub probe to return 2 channels
+    exporter._probeAudioChannels = async () => 2;
+    await exporter._detectEmbeddedAudio(itr);
+
+    const asset = itr.assets[0];
+    expect(asset.audioChannels).toBe(2);
+  });
+
+  test('_detectEmbeddedAudio leaves audioChannels unchanged when already set', async () => {
+    const p = new Project({ fps: 30 });
+    const clip = p.addTrack('video').addVideo('/v.mp4', { inPoint: 0, outPoint: 5 });
+    clip.asset.audioChannels = 6;  // already known (5.1)
+    const itr = toItr(p);
+
+    const exporter = new Mp4Exporter(p);
+    const probeCallCount = { n: 0 };
+    exporter._probeAudioChannels = async () => { probeCallCount.n++; return 2; };
+    await exporter._detectEmbeddedAudio(itr);
+
+    // Should not probe assets that already have audioChannels set
+    expect(probeCallCount.n).toBe(0);
+    expect(itr.assets[0].audioChannels).toBe(6);
+  });
+});
+
 // ── Mp4Exporter ────────────────────────────────────────────────────────────────
 
 describe('Mp4Exporter', () => {
