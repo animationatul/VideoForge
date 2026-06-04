@@ -201,6 +201,16 @@ class PremiereXmlExporter extends Exporter {
           this._emitAudioTrack(b, track, itr);
         }
       }
+
+      // Emit audio tracks for video clips that have embedded audio (e.g. MP4 with sound).
+      for (const vtrack of itr.getVideoTracks()) {
+        const embeddedAudioClips = vtrack.getSortedClips().filter(
+          (c) => itr.getAsset(c.assetId)?.hasAudio,
+        );
+        if (embeddedAudioClips.length > 0) {
+          this._emitEmbeddedAudioTrack(b, embeddedAudioClips, itr);
+        }
+      }
     b.close(); // audio
   }
 
@@ -216,6 +226,20 @@ class PremiereXmlExporter extends Exporter {
       b.leaf('enabled',     {}, 'TRUE');
       b.leaf('locked',      {}, track.locked ? 'TRUE' : 'FALSE');
       b.leaf('outputlevel', {}, String(this._linearToDb(track.volume)));
+    b.close(); // track
+  }
+
+  _emitEmbeddedAudioTrack(b, clips, itr) {
+    const emittedFiles = new Map();
+    b.open('track');
+      for (let i = 0; i < clips.length; i++) {
+        const clip  = clips[i];
+        const asset = itr.getAsset(clip.assetId);
+        this._emitClipItem(b, clip, asset, itr, i + 1, 'audio', emittedFiles);
+      }
+      b.leaf('enabled',     {}, 'TRUE');
+      b.leaf('locked',      {}, 'FALSE');
+      b.leaf('outputlevel', {}, '0');
     b.close(); // track
   }
 
@@ -341,9 +365,9 @@ class PremiereXmlExporter extends Exporter {
         b.close(); // filter
       }
 
-      // Opacity filter
-      if (mediaType === 'video' && clip.opacity !== 1) {
-        this._emitOpacityFilter(b, clip.opacity);
+      // Opacity + fade-in/out animation (fade effects converted to opacity keyframes)
+      if (mediaType === 'video') {
+        this._emitOpacityWithFades(b, clip, endFrame - startFrame, fps);
       }
 
       // Speed / time remap filter (negative value encodes reverse)
@@ -363,9 +387,11 @@ class PremiereXmlExporter extends Exporter {
         b.close(); // filter
       }
 
-      // User-defined effect filters
+      // User-defined effect filters (fade effects handled by _emitOpacityWithFades above)
       for (const effect of (clip.effects ?? [])) {
-        this._emitEffectFilter(b, effect);
+        if (effect.type !== 'fadeIn' && effect.type !== 'fadeOut') {
+          this._emitEffectFilter(b, effect);
+        }
       }
 
       // Transitions
@@ -398,6 +424,77 @@ class PremiereXmlExporter extends Exporter {
           b.leaf('parameterid', {}, 'opacity');
           b.leaf('name',  {}, 'Opacity');
           b.leaf('value', {}, String(Math.round(opacity * 100)));
+        b.close();
+      b.close();
+    b.close(); // filter
+  }
+
+  /**
+   * Emit an opacity filter with keyframes for fade-in/out effects, or a static
+   * opacity value if no fades are present. Fade effects (type 'fadeIn'/'fadeOut')
+   * are converted to Premiere-compatible opacity keyframes instead of being emitted
+   * as unrecognised effect names.
+   * @param {XmlBuilder} b
+   * @param {import('../interchange/ClipRepresentation.js').default} clip
+   * @param {number} totalFrames - Total clip duration in frames.
+   * @param {number} fps
+   */
+  _emitOpacityWithFades(b, clip, totalFrames, fps) {
+    const fadeIn  = (clip.effects ?? []).find((e) => e.type === 'fadeIn');
+    const fadeOut = (clip.effects ?? []).find((e) => e.type === 'fadeOut');
+    const baseOpacity = (clip.opacity ?? 1) * 100;
+
+    if (!fadeIn && !fadeOut && clip.opacity === 1) return;
+
+    if (!fadeIn && !fadeOut) {
+      this._emitOpacityFilter(b, clip.opacity);
+      return;
+    }
+
+    const keyframes = [];
+
+    if (fadeIn) {
+      const fadeSecs   = fadeIn.getParam('duration', 1);
+      const fadeFrames = this._secToFrames(fadeSecs, fps);
+      const fromVal    = (fadeIn.getParam('fromOpacity', 0)) * 100;
+      const toVal      = (fadeIn.getParam('toOpacity',   1)) * 100;
+      keyframes.push({ frame: 0,          value: fromVal });
+      keyframes.push({ frame: fadeFrames, value: toVal   });
+    } else {
+      keyframes.push({ frame: 0, value: baseOpacity });
+    }
+
+    if (fadeOut) {
+      const fadeSecs     = fadeOut.getParam('duration', 1);
+      const fadeFrames   = this._secToFrames(fadeSecs, fps);
+      const fadeOutStart = totalFrames - fadeFrames;
+      const fromVal      = (fadeOut.getParam('fromOpacity', 1)) * 100;
+      const toVal        = (fadeOut.getParam('toOpacity',   0)) * 100;
+      if (fadeOutStart > (keyframes[keyframes.length - 1]?.frame ?? -1)) {
+        keyframes.push({ frame: fadeOutStart, value: fromVal });
+      }
+      keyframes.push({ frame: totalFrames, value: toVal });
+    } else {
+      const lastFrame = keyframes[keyframes.length - 1]?.frame ?? -1;
+      if (lastFrame < totalFrames) {
+        keyframes.push({ frame: totalFrames, value: baseOpacity });
+      }
+    }
+
+    b.open('filter');
+      b.open('effect');
+        b.leaf('name',       {}, 'Opacity');
+        b.leaf('effectid',   {}, 'opacity');
+        b.leaf('effecttype', {}, 'motion');
+        b.open('parameter');
+          b.leaf('parameterid', {}, 'opacity');
+          b.leaf('name',  {}, 'Opacity');
+          for (const kf of keyframes) {
+            b.open('keyframe');
+              b.leaf('when',  {}, String(kf.frame));
+              b.leaf('value', {}, String(Math.round(kf.value)));
+            b.close();
+          }
         b.close();
       b.close();
     b.close(); // filter
@@ -543,7 +640,243 @@ class PremiereXmlExporter extends Exporter {
         b.close();
 
       b.close(); // effect
+
+      // Caption clip-level animations → Premiere-compatible keyframe filters
+      const clipDurFrames = end - start;
+      const animations = clip.captionData.animations ?? [];
+      if (animations.length > 0) {
+        this._emitCaptionAnimationFilters(b, animations, clipDurFrames, fps, title.x, title.y, itr);
+      }
+
+      // Caption container keyframes → Premiere-compatible keyframe filters
+      const kfSetData = clip.captionData.videoForgePayload?.captionKeyframeSet;
+      if (kfSetData && Object.keys(kfSetData.tracks ?? {}).length > 0) {
+        this._emitCaptionKeyframeFilters(b, kfSetData, fps, itr);
+      }
+
     b.close(); // generatoritem
+  }
+
+  // ─── Caption animation filters ────────────────────────────────────────────────
+
+  _emitCaptionAnimationFilters(b, animations, clipDurFrames, fps, normalizedX, normalizedY, itr) {
+    const unsupportedFound = [];
+
+    for (const anim of animations) {
+      if (!anim.enabled) continue;
+
+      const delayFrames    = this._secToFrames(anim.delay    ?? 0,   fps);
+      const durationFrames = this._secToFrames(anim.duration ?? 0.5, fps);
+      const animEnd        = delayFrames + durationFrames;
+      const p              = anim.params ?? {};
+
+      switch (anim.type) {
+        case 'fade': {
+          const dir         = p.direction ?? 'in';
+          const fromOpacity = (p.fromOpacity ?? (dir === 'out' ? 1 : 0)) * 100;
+          const toOpacity   = (p.toOpacity   ?? (dir === 'out' ? 0 : 1)) * 100;
+          const kfs = delayFrames > 0
+            ? [{ frame: 0, value: fromOpacity }, { frame: delayFrames, value: fromOpacity }, { frame: animEnd, value: toOpacity }]
+            : [{ frame: 0, value: fromOpacity }, { frame: animEnd, value: toOpacity }];
+          b.open('filter');
+            b.open('effect');
+              b.leaf('name', {}, 'Opacity'); b.leaf('effectid', {}, 'opacity'); b.leaf('effecttype', {}, 'motion');
+              b.open('parameter');
+                b.leaf('parameterid', {}, 'opacity'); b.leaf('name', {}, 'Opacity');
+                for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(Math.round(kf.value))); b.close(); }
+              b.close();
+            b.close();
+          b.close();
+          break;
+        }
+
+        case 'slide': {
+          const dir      = p.direction ?? 'up';
+          const distance = p.distance  ?? 40;
+          const fade     = p.fade      ?? true;
+          const cx = Math.round((normalizedX ?? 0.5) * itr.width);
+          const cy = Math.round((normalizedY ?? 0.5) * itr.height);
+          let dx0 = 0, dy0 = 0;
+          if (dir === 'up')    dy0 = -distance;
+          if (dir === 'down')  dy0 = +distance;
+          if (dir === 'left')  dx0 = -distance;
+          if (dir === 'right') dx0 = +distance;
+          const startCenter = `${cx + dx0} ${cy + dy0}`;
+          const endCenter   = `${cx} ${cy}`;
+          b.open('filter');
+            b.open('effect');
+              b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+              b.open('parameter');
+                b.leaf('parameterid', {}, 'center'); b.leaf('name', {}, 'Center');
+                if (delayFrames > 0) { b.open('keyframe'); b.leaf('when', {}, '0'); b.leaf('value', {}, startCenter); b.close(); b.open('keyframe'); b.leaf('when', {}, String(delayFrames)); b.leaf('value', {}, startCenter); b.close(); } else { b.open('keyframe'); b.leaf('when', {}, '0'); b.leaf('value', {}, startCenter); b.close(); }
+                b.open('keyframe'); b.leaf('when', {}, String(animEnd)); b.leaf('value', {}, endCenter); b.close();
+              b.close();
+            b.close();
+          b.close();
+          if (fade) {
+            b.open('filter');
+              b.open('effect');
+                b.leaf('name', {}, 'Opacity'); b.leaf('effectid', {}, 'opacity'); b.leaf('effecttype', {}, 'motion');
+                b.open('parameter');
+                  b.leaf('parameterid', {}, 'opacity'); b.leaf('name', {}, 'Opacity');
+                  if (delayFrames > 0) { b.open('keyframe'); b.leaf('when', {}, '0'); b.leaf('value', {}, '0'); b.close(); b.open('keyframe'); b.leaf('when', {}, String(delayFrames)); b.leaf('value', {}, '0'); b.close(); } else { b.open('keyframe'); b.leaf('when', {}, '0'); b.leaf('value', {}, '0'); b.close(); }
+                  b.open('keyframe'); b.leaf('when', {}, String(animEnd)); b.leaf('value', {}, '100'); b.close();
+                b.close();
+              b.close();
+            b.close();
+          }
+          break;
+        }
+
+        case 'scale':
+        case 'zoom': {
+          const fromScale = (p.fromScale ?? (anim.type === 'zoom' && p.mode === 'out' ? 1 : anim.type === 'zoom' ? 2 : 0)) * 100;
+          const toScale   = (p.toScale   ?? (anim.type === 'zoom' && p.mode === 'out' ? 0 : 1)) * 100;
+          const fade      = p.fade ?? (anim.type === 'zoom');
+          const kfs = delayFrames > 0
+            ? [{ frame: 0, value: fromScale }, { frame: delayFrames, value: fromScale }, { frame: animEnd, value: toScale }]
+            : [{ frame: 0, value: fromScale }, { frame: animEnd, value: toScale }];
+          b.open('filter');
+            b.open('effect');
+              b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+              b.open('parameter');
+                b.leaf('parameterid', {}, 'scale'); b.leaf('name', {}, 'Scale');
+                for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(Math.round(kf.value))); b.close(); }
+              b.close();
+            b.close();
+          b.close();
+          if (fade) {
+            const fadeFrom = (anim.type === 'zoom' && p.mode === 'out') ? 100 : 0;
+            const fadeTo   = (anim.type === 'zoom' && p.mode === 'out') ? 0   : 100;
+            const fadeKfs = delayFrames > 0
+              ? [{ frame: 0, value: fadeFrom }, { frame: delayFrames, value: fadeFrom }, { frame: animEnd, value: fadeTo }]
+              : [{ frame: 0, value: fadeFrom }, { frame: animEnd, value: fadeTo }];
+            b.open('filter');
+              b.open('effect');
+                b.leaf('name', {}, 'Opacity'); b.leaf('effectid', {}, 'opacity'); b.leaf('effecttype', {}, 'motion');
+                b.open('parameter');
+                  b.leaf('parameterid', {}, 'opacity'); b.leaf('name', {}, 'Opacity');
+                  for (const kf of fadeKfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(Math.round(kf.value))); b.close(); }
+                b.close();
+              b.close();
+            b.close();
+          }
+          break;
+        }
+
+        case 'rotate': {
+          const fromDeg = p.fromDegrees ?? -90;
+          const toDeg   = p.toDegrees   ?? 0;
+          const kfs = delayFrames > 0
+            ? [{ frame: 0, value: fromDeg }, { frame: delayFrames, value: fromDeg }, { frame: animEnd, value: toDeg }]
+            : [{ frame: 0, value: fromDeg }, { frame: animEnd, value: toDeg }];
+          b.open('filter');
+            b.open('effect');
+              b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+              b.open('parameter');
+                b.leaf('parameterid', {}, 'rotation'); b.leaf('name', {}, 'Rotation');
+                for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(kf.value)); b.close(); }
+              b.close();
+            b.close();
+          b.close();
+          break;
+        }
+
+        default:
+          if (!unsupportedFound.includes(anim.type)) unsupportedFound.push(anim.type);
+      }
+    }
+
+    if (unsupportedFound.length > 0) {
+      b.comment(`VideoForge: unsupported caption animations (preserved in vf:metadata): ${unsupportedFound.join(', ')}`);
+    }
+  }
+
+  // ─── Caption keyframe filters ─────────────────────────────────────────────────
+
+  _emitCaptionKeyframeFilters(b, kfSetData, fps, itr) {
+    const tracks = kfSetData.tracks ?? {};
+
+    if (tracks.opacity?.keyframes?.length > 0) {
+      const kfs = tracks.opacity.keyframes.map((kf) => ({
+        frame: this._secToFrames(kf.time, fps),
+        value: Math.round((kf.properties?.opacity ?? 1) * 100),
+      }));
+      b.open('filter');
+        b.open('effect');
+          b.leaf('name', {}, 'Opacity'); b.leaf('effectid', {}, 'opacity'); b.leaf('effecttype', {}, 'motion');
+          b.open('parameter');
+            b.leaf('parameterid', {}, 'opacity'); b.leaf('name', {}, 'Opacity');
+            for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(kf.value)); b.close(); }
+          b.close();
+        b.close();
+      b.close();
+    }
+
+    const xTrack = tracks.x;
+    const yTrack = tracks.y;
+    if (xTrack?.keyframes?.length > 0 || yTrack?.keyframes?.length > 0) {
+      const timeMap = new Map();
+      for (const kf of (xTrack?.keyframes ?? [])) {
+        timeMap.set(kf.time, { x: kf.properties?.x ?? 0, y: 0 });
+      }
+      for (const kf of (yTrack?.keyframes ?? [])) {
+        const existing = timeMap.get(kf.time) ?? { x: 0, y: 0 };
+        existing.y = kf.properties?.y ?? 0;
+        timeMap.set(kf.time, existing);
+      }
+      const halfW = Math.round(itr.width  / 2);
+      const halfH = Math.round(itr.height / 2);
+      b.open('filter');
+        b.open('effect');
+          b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+          b.open('parameter');
+            b.leaf('parameterid', {}, 'center'); b.leaf('name', {}, 'Center');
+            for (const t of [...timeMap.keys()].sort((a, c) => a - c)) {
+              const { x, y } = timeMap.get(t);
+              b.open('keyframe');
+                b.leaf('when',  {}, String(this._secToFrames(t, fps)));
+                b.leaf('value', {}, `${halfW + Math.round(x)} ${halfH + Math.round(y)}`);
+              b.close();
+            }
+          b.close();
+        b.close();
+      b.close();
+    }
+
+    const scaleTrack = tracks.scaleX ?? tracks.scale;
+    if (scaleTrack?.keyframes?.length > 0) {
+      const prop = tracks.scaleX ? 'scaleX' : 'scale';
+      const kfs = scaleTrack.keyframes.map((kf) => ({
+        frame: this._secToFrames(kf.time, fps),
+        value: Math.round((kf.properties?.[prop] ?? 1) * 100),
+      }));
+      b.open('filter');
+        b.open('effect');
+          b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+          b.open('parameter');
+            b.leaf('parameterid', {}, 'scale'); b.leaf('name', {}, 'Scale');
+            for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(kf.value)); b.close(); }
+          b.close();
+        b.close();
+      b.close();
+    }
+
+    if (tracks.rotation?.keyframes?.length > 0) {
+      const kfs = tracks.rotation.keyframes.map((kf) => ({
+        frame: this._secToFrames(kf.time, fps),
+        value: kf.properties?.rotation ?? 0,
+      }));
+      b.open('filter');
+        b.open('effect');
+          b.leaf('name', {}, 'Basic Motion'); b.leaf('effectid', {}, 'motion'); b.leaf('effecttype', {}, 'motion');
+          b.open('parameter');
+            b.leaf('parameterid', {}, 'rotation'); b.leaf('name', {}, 'Rotation');
+            for (const kf of kfs) { b.open('keyframe'); b.leaf('when', {}, String(kf.frame)); b.leaf('value', {}, String(kf.value)); b.close(); }
+          b.close();
+        b.close();
+      b.close();
+    }
   }
 
   // ─── VideoForge namespace metadata ────────────────────────────────────────────
