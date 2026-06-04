@@ -327,10 +327,14 @@ class FcpxmlExporter extends Exporter {
     }
 
     // Audio tracks → negative lanes
+    // Emit each audio clip once, attached to the first spine clip whose window
+    // contains the audio clip's start point. The FCPXML `offset` attribute is
+    // absolute on the primary storyline, so FCP positions it correctly even when
+    // the audio clip extends beyond the parent spine clip's end.
     for (let i = 0; i < audioTracks.length; i++) {
       for (const clip of audioTracks[i].getSortedClips()) {
         if (clip.timelineStart >= primaryClip.timelineStart &&
-            clip.timelineEnd   <= primaryClip.timelineEnd) {
+            clip.timelineStart <  primaryClip.timelineEnd) {
           const asset = itr.getAsset(clip.assetId);
           this._emitAudioClip(b, clip, asset, itr, -(i + 1));
         }
