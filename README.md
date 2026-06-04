@@ -4,6 +4,8 @@ A developer-first JavaScript (Node.js) library for building video editors, autom
 
 VideoForge provides a **Timeline Engine** as its core abstraction. You compose a project by adding tracks and clips, attaching effects, and exporting to any supported format — all through a clean, chainable API. No UI, no FFmpeg wiring required for the library itself.
 
+**License:** AGPL-3.0
+
 ---
 
 ## Architecture
@@ -1030,4 +1032,8 @@ See [Custom exporter using ITR](#custom-exporter-using-itr) above for a full exa
 
 ## License
 
-MIT
+Copyright (c) 2026 Atul Taware
+
+VideoForge is licensed under AGPL-3.0.
+
+See LICENSE for details.

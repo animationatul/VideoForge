@@ -2186,4 +2186,4 @@ console.log('All exports complete.');
 
 ---
 
-*VideoForge v0.9.0-alpha.1 — MIT License*
+*VideoForge v0.9.0-alpha.1 — AGPL-3.0*
