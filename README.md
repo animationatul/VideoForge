@@ -25,10 +25,11 @@ Project
 └── Export Pipeline
     └── TimelineConverter     ← Project → IntermediateTimeline (ITR)
         └── IntermediateTimeline
-            ├── PremiereXmlExporter  → .xml  (XMEML v5)
+            ├── PremiereXmlExporter  → .xml    (XMEML v5)
             ├── FcpxmlExporter       → .fcpxml (FCPXML 1.10)
-            ├── EdlExporter          → .edl  (CMX3600)
-            └── JsonExporter         → .vfp  (VideoForge JSON)
+            ├── EdlExporter          → .edl    (CMX3600)
+            ├── JsonExporter         → .vfp    (VideoForge JSON)
+            └── Mp4Exporter          → .mp4    (FFmpeg V1)
 ```
 
 All exporters consume the **Intermediate Timeline Representation (ITR)** — never the Project directly. This single conversion path ensures consistent output across all formats and preserves unsupported features in a `vf:` namespace for round-trips.
@@ -84,6 +85,12 @@ project.track(id);                              // alias for getTrack
 project.removeTrack(id);                        // boolean
 project.getTracks();                            // Track[]
 project.reorderTracks([id1, id2, id3]);         // Project (chainable)
+
+// Validation
+const report = project.validate();                     // { valid, warnings, errors }
+const mp4report = project.validate({ exporter: 'mp4' }); // includes MP4-specific checks
+if (!report.valid) console.error(report.errors);
+console.warn(report.warnings);
 
 // Export
 await project.export({ type: 'json',    output: './out.vfp'     });
@@ -726,7 +733,90 @@ class DaVinciXmlExporter extends Exporter {
 | `PremiereXmlExporter` | XMEML v5 `.xml` | Full | File dedup, filters, transitions, captions |
 | `FcpxmlExporter` | FCPXML 1.10 `.fcpxml` | Full | Rational time, connected clips, titles |
 | `EdlExporter` | CMX3600 `.edl` | Full | NDF/DF timecodes, dissolves, audio AX events |
-| `Mp4Exporter` | MP4 `.mp4` | Skeleton | Requires FFmpeg + frame compositor |
+| `Mp4Exporter` | MP4 `.mp4` | V1 — Full | Requires FFmpeg in PATH. See [MP4 Export](#mp4-export) |
+
+---
+
+## MP4 Export
+
+`Mp4Exporter` renders a VideoForge project to an `.mp4` file by generating an FFmpeg `-filter_complex` command and executing it in a child process.  FFmpeg must be installed and available in `PATH`.
+
+### Quick start
+
+```js
+import { Mp4Exporter } from 'videoforge';
+
+const exporter = new Mp4Exporter(project, {
+  preset:       'medium',    // FFmpeg libx264 preset (ultrafast → veryslow)
+  crf:          18,          // quality (0 = lossless, 51 = worst)
+  videoCodec:   'libx264',
+  audioCodec:   'aac',
+  pixelFormat:  'yuv420p',
+  audioBitrate: '192k',
+  onProgress:   (pct) => console.log(`${pct.toFixed(0)}%`),
+});
+
+const result = await exporter.export('./output/final.mp4');
+// result: { success, output, duration, fileSize }
+```
+
+Or via `project.export()`:
+
+```js
+const result = await project.export({
+  type:   'mp4',
+  output: './output/final.mp4',
+  preset: 'fast',
+  crf:    22,
+});
+```
+
+### What's supported (V1)
+
+| Feature | Support |
+|---|---|
+| `VideoClip` — trim (`inPoint`, `outPoint`) | ✅ |
+| `VideoClip` — speed (any positive multiplier) | ✅ |
+| `VideoClip` — reverse playback | ✅ |
+| `VideoClip` — `fadeIn` / `fadeOut` (video) | ✅ |
+| `VideoClip` — `volume`, `mute` (embedded audio) | ✅ |
+| Embedded audio in video files (auto-detected via ffprobe) | ✅ |
+| `AudioClip` — trim, speed, volume, mute, fadeIn, fadeOut | ✅ |
+| Multiple clips on a video track — concatenated in order | ✅ |
+| Multiple audio tracks — mixed via `amix` | ✅ |
+| Progress callback (`onProgress`) | ✅ |
+| `project.validate({ exporter: 'mp4' })` pre-export checks | ✅ |
+
+### What's not supported (V1 limitations)
+
+| Feature | Status |
+|---|---|
+| `ImageClip` rendering | ⚠️ Skipped — clips are ignored by the MP4 exporter |
+| `TextClip` / `CaptionClip` rendering | ⚠️ Skipped — use Premiere/FCP XML export instead |
+| `ShapeClip` rendering | ⚠️ Skipped |
+| Transitions (cross-dissolve, wipe, etc.) | ⚠️ Ignored |
+| Color correction / LUT effects | ⚠️ Ignored |
+| Blur / custom effects | ⚠️ Ignored |
+| Keyframe animation | ⚠️ Not implemented |
+| Gaps between clips (silence / black) | ⚠️ Clips are placed back-to-back |
+| GPU encoding (NVENC, VideoToolbox) | Configurable via `videoCodec` option |
+
+Use `project.validate({ exporter: 'mp4' })` to get a full warning list before exporting:
+
+```js
+const report = project.validate({ exporter: 'mp4' });
+// report.warnings includes UNSUPPORTED_CLIP_TYPE and UNSUPPORTED_EFFECT entries
+// report.errors includes MISSING_ASSET, INVALID_TRIM, NEGATIVE_DURATION entries
+// report.valid is false if any errors are present
+```
+
+### Inspect the generated FFmpeg command
+
+```js
+const exporter = new Mp4Exporter(project, { preset: 'ultrafast' });
+const args = exporter.buildCommand('./output/preview.mp4');
+console.log('ffmpeg', args.join(' '));
+```
 
 ---
 
@@ -816,7 +906,12 @@ src/
 │   ├── PremiereXmlExporter.js   XMEML v5 (.xml) — full
 │   ├── FcpxmlExporter.js        FCPXML 1.10 (.fcpxml) — full
 │   ├── EdlExporter.js           CMX3600 EDL (.edl) — full
-│   └── Mp4Exporter.js           FFmpeg render (.mp4) — skeleton
+│   ├── Mp4Exporter.js           Re-export from mp4/ subdirectory
+│   └── mp4/
+│       ├── Mp4Exporter.js       Main exporter — export(), buildCommand()
+│       ├── FFmpegCommandBuilder.js  Assembles FFmpeg args array
+│       ├── FilterGraphBuilder.js    Builds -filter_complex string
+│       └── ProgressParser.js        Parses FFmpeg stderr for progress
 │
 ├── preview/
 │   ├── PreviewPlayer.js    Playback driver (rAF / setInterval)
@@ -829,11 +924,28 @@ src/
 └── index.js               Public surface — re-exports everything
 
 tests/
-└── interchange/
-    ├── premiere.test.js   XMEML v5 output tests
-    ├── fcpxml.test.js     FCPXML 1.10 output tests
-    ├── roundtrip.test.js  ITR round-trip fidelity tests
-    └── captions.test.js   Caption export tests
+├── core/
+│   └── project-validate.test.js  Project.validate() API tests
+├── helpers/
+│   └── fixtures.js               Shared FFmpeg fixture generator
+├── interchange/
+│   ├── premiere.test.js          XMEML v5 output tests
+│   ├── fcpxml.test.js            FCPXML 1.10 output tests
+│   ├── roundtrip.test.js         ITR round-trip fidelity tests
+│   └── captions.test.js          Caption export tests
+├── exporters/
+│   ├── mp4-exporter.test.js      Mp4Exporter unit tests (no FFmpeg needed)
+│   └── mp4-integration.test.js   Mp4Exporter integration tests (requires FFmpeg)
+└── integration/
+    └── mp4-export.test.js        End-to-end export + validate workflow tests
+
+examples/
+├── basic-usage.js        Core API overview (JSON export)
+├── basic-edit.js         VideoClip trim/speed/fade → MP4
+├── podcast-edit.js       AudioClip volume/pan/speed → MP4
+├── premiere-export.js    PremiereXmlExporter workflow
+├── fcpxml-export.js      FcpxmlExporter workflow
+└── caption-demo.js       Caption Engine — presets, animations, effects
 ```
 
 ---
@@ -906,8 +1018,10 @@ See [Custom exporter using ITR](#custom-exporter-using-itr) above for a full exa
 - [x] Premiere Pro XMEML v5 exporter (full)
 - [x] FCPXML 1.10 exporter (full)
 - [x] CMX3600 EDL exporter (full)
+- [x] MP4 render pipeline V1 (FFmpeg filter-complex, VideoClip + AudioClip, embedded audio)
+- [x] `project.validate()` — pre-export validation API
 - [ ] Clip-type `fromJSON` registry (full round-trip deserialisation)
-- [ ] MP4 render pipeline (FFmpeg filter-complex builder)
+- [ ] MP4 V2 — gap padding, caption/text/shape rendering, transitions
 - [ ] `node-canvas` / WebGL `CaptionRenderer` backend
 - [ ] Color correction effect (LUT / curves)
 - [ ] MCP server layer (separate package: `videoforge-mcp`)

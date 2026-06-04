@@ -131,6 +131,109 @@ class Project {
     return this;
   }
 
+  // ─── Validation ──────────────────────────────────────────────────────────────
+
+  /**
+   * Validate the project and return a structured report.
+   *
+   * Always checks:
+   *   - Empty tracks (warning)
+   *   - Missing asset paths (error)
+   *   - Invalid trim — negative inPoint, outPoint ≤ inPoint (error)
+   *   - Negative computed duration (error)
+   *
+   * When `options.exporter === 'mp4'` also checks:
+   *   - Clip types the MP4 exporter cannot render: image, text, shape (warning)
+   *   - Effects the MP4 exporter ignores: transition, colorCorrection, blur, custom (warning)
+   *
+   * @param {object} [options={}]
+   * @param {string} [options.exporter] - Pass `'mp4'` for MP4-specific checks.
+   * @returns {{ valid: boolean, warnings: object[], errors: object[] }}
+   */
+  validate(options = {}) {
+    const errors   = [];
+    const warnings = [];
+    const mp4Mode  = options.exporter === 'mp4';
+    const MP4_UNSUPPORTED_EFFECTS = new Set(['transition', 'colorCorrection', 'blur', 'custom']);
+
+    for (const track of this._tracks) {
+      const clips = track.getClips();
+
+      if (clips.length === 0) {
+        warnings.push({
+          type:     'EMPTY_TRACK',
+          severity: 'warning',
+          message:  `Track "${track.name}" (${track.id}) has no clips.`,
+        });
+        continue;
+      }
+
+      for (const clip of clips) {
+        const ref = clip.name
+          ? `Clip "${clip.name}" (${clip.id})`
+          : `Clip ${clip.id}`;
+
+        if (clip.asset && !clip.asset.path) {
+          errors.push({
+            type:     'MISSING_ASSET',
+            severity: 'error',
+            message:  `${ref} on track "${track.name}" references an asset with no path.`,
+          });
+        }
+
+        if (clip.inPoint < 0) {
+          errors.push({
+            type:     'INVALID_TRIM',
+            severity: 'error',
+            message:  `${ref} has a negative inPoint (${clip.inPoint}s).`,
+          });
+        }
+
+        if (clip.outPoint <= clip.inPoint) {
+          errors.push({
+            type:     'INVALID_TRIM',
+            severity: 'error',
+            message:  `${ref} has outPoint (${clip.outPoint}s) ≤ inPoint (${clip.inPoint}s).`,
+          });
+        }
+
+        if (clip.duration < 0) {
+          errors.push({
+            type:     'NEGATIVE_DURATION',
+            severity: 'error',
+            message:  `${ref} has a negative computed duration (${clip.duration.toFixed(3)}s).`,
+          });
+        }
+
+        if (mp4Mode) {
+          if (clip.type === 'image' || clip.type === 'shape' || clip.type === 'text') {
+            warnings.push({
+              type:     'UNSUPPORTED_CLIP_TYPE',
+              severity: 'warning',
+              message:  `${ref} (type="${clip.type}") will be skipped by the MP4 exporter.`,
+            });
+          }
+
+          for (const effect of clip.effects ?? []) {
+            if (MP4_UNSUPPORTED_EFFECTS.has(effect.type)) {
+              warnings.push({
+                type:     'UNSUPPORTED_EFFECT',
+                severity: 'warning',
+                message:  `Effect "${effect.type}" on ${ref} is not supported by the MP4 exporter.`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      warnings,
+      errors,
+    };
+  }
+
   // ─── Export ───────────────────────────────────────────────────────────────────
 
   /**
