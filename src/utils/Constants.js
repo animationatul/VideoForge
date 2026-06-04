@@ -66,6 +66,7 @@ export const EXPORT_TYPES = Object.freeze({
   JSON: 'json',
   PREMIERE: 'premiere',
   FCPXML: 'fcpxml',
+  EDL: 'edl',
   MP4: 'mp4',
 });
 

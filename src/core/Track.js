@@ -274,11 +274,23 @@ class Track {
     track.createdAt = new Date(data.createdAt);
 
     for (const clipData of data.clips ?? []) {
-      // TODO: Dispatch to per-type fromJSON() using a ClipFactory registry.
-      //       Currently tracks are re-created without live clip objects when
-      //       deserialised via static fromJSON.  Use Project.fromJSON() which
-      //       handles the full clip-type dispatch.
-      void clipData;
+      let clip;
+      switch (clipData.type) {
+        case 'video': clip = VideoClip.fromJSON(clipData);  break;
+        case 'audio': clip = AudioClip.fromJSON(clipData);  break;
+        case 'image': clip = ImageClip.fromJSON(clipData);  break;
+        case 'shape': clip = ShapeClip.fromJSON(clipData);  break;
+        case 'text':
+          // CaptionClip also serialises as type='text'; the presence of
+          // the 'segments' array distinguishes it from a plain TextClip.
+          clip = 'segments' in clipData
+            ? CaptionClip.fromJSON(clipData)
+            : TextClip.fromJSON(clipData);
+          break;
+        default:
+          continue; // unknown type — skip safely
+      }
+      track._attach(clip);
     }
 
     return track;
