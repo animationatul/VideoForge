@@ -24,7 +24,7 @@
  * ✅ Phase 3 — Media Controls per Type     (5 tools)
  * ⬜ Phase 4 — Caption Engine Core
  * ⬜ Phase 5 — Caption Engine Advanced
- * ⬜ Phase 6 — MP4 Export Pipeline
+ * ✅ Phase 6 — MP4 Export Pipeline         (3 tools)
  * ⬜ Phase 7 — Validation & Quality
  * ⬜ Phase 8 — Regression Extension
  * ⬜ Phase 9 — Discovery APIs
@@ -49,6 +49,7 @@ import { TrackService }        from './services/TrackService.js';        // Phas
 import { ClipService }         from './services/ClipService.js';         // Phase 1
 import { ClipEditingService }  from './services/ClipEditingService.js';  // Phase 2
 import { ClipStyleService }    from './services/ClipStyleService.js';    // Phase 3
+import { Mp4ExportService }   from './services/Mp4ExportService.js';    // Phase 6
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,12 @@ import * as setImageTransform from './tools/set_image_transform.js';
 import * as setTextStyle      from './tools/set_text_style.js';
 import * as setShapeStyle     from './tools/set_shape_style.js';
 
+// ── Tools — Phase 6 (MP4 Export Pipeline) ─────────────────────────────────────
+
+import * as exportMp4         from './tools/export_mp4.js';
+import * as getFfmpegCommand  from './tools/get_ffmpeg_command.js';
+import * as inspectMp4Export  from './tools/inspect_mp4_export.js';
+
 // ── Resources ─────────────────────────────────────────────────────────────────
 
 import { registerResources } from './resources/index.js';
@@ -114,6 +121,7 @@ const trackService       = new TrackService(projectService);         // Phase 1
 const clipService        = new ClipService(projectService);          // Phase 1
 const clipEditingService = new ClipEditingService(projectService);   // Phase 2
 const clipStyleService   = new ClipStyleService(projectService);     // Phase 3
+const mp4ExportService   = new Mp4ExportService(projectService);     // Phase 6
 const exportParser       = new ExportParser();
 
 /** Services bag passed into every tool handler. */
@@ -128,6 +136,7 @@ const services = {
   clipService,
   clipEditingService,
   clipStyleService,
+  mp4ExportService,
   exportParser,
 };
 
@@ -171,6 +180,11 @@ const ALL_TOOLS = [
   setImageTransform,
   setTextStyle,
   setShapeStyle,
+
+  // Phase 6 — MP4 Export Pipeline
+  exportMp4,
+  getFfmpegCommand,
+  inspectMp4Export,
 ];
 
 /** @type {Map<string, Function>} */
@@ -183,7 +197,7 @@ const toolHandlers = new Map(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'videoforge-mcp', version: '1.3.0' },
+  { name: 'videoforge-mcp', version: '1.6.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
@@ -224,4 +238,4 @@ registerResources(server, { inspectionService, exportService });
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error('[VideoForge MCP] Server running on stdio — 28 tools active');
+console.error('[VideoForge MCP] Server running on stdio — 31 tools active');
