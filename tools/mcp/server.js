@@ -20,8 +20,8 @@
  * Phase tracker
  * ─────────────
  * ✅ Phase 1 — Track & Clip Factory        (8 tools)
- * ⬜ Phase 2 — Clip Editing Operations
- * ⬜ Phase 3 — Media Controls per Type
+ * ✅ Phase 2 — Clip Editing Operations     (6 tools)
+ * ✅ Phase 3 — Media Controls per Type     (5 tools)
  * ⬜ Phase 4 — Caption Engine Core
  * ⬜ Phase 5 — Caption Engine Advanced
  * ⬜ Phase 6 — MP4 Export Pipeline
@@ -39,14 +39,16 @@ import {
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
-import { StorageService }     from './services/StorageService.js';
-import { ProjectService }     from './services/ProjectService.js';
-import { InspectionService }  from './services/InspectionService.js';
-import { ExportService }      from './services/ExportService.js';
-import { ValidationService }  from './services/ValidationService.js';
-import { RegressionService }  from './services/RegressionService.js';
-import { TrackService }       from './services/TrackService.js';       // Phase 1
-import { ClipService }        from './services/ClipService.js';        // Phase 1
+import { StorageService }      from './services/StorageService.js';
+import { ProjectService }      from './services/ProjectService.js';
+import { InspectionService }   from './services/InspectionService.js';
+import { ExportService }       from './services/ExportService.js';
+import { ValidationService }   from './services/ValidationService.js';
+import { RegressionService }   from './services/RegressionService.js';
+import { TrackService }        from './services/TrackService.js';        // Phase 1
+import { ClipService }         from './services/ClipService.js';         // Phase 1
+import { ClipEditingService }  from './services/ClipEditingService.js';  // Phase 2
+import { ClipStyleService }    from './services/ClipStyleService.js';    // Phase 3
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
@@ -75,6 +77,23 @@ import * as removeClip    from './tools/remove_clip.js';
 import * as inspectClip   from './tools/inspect_clip.js';
 import * as listProjects  from './tools/list_projects.js';
 
+// ── Tools — Phase 2 (Clip Editing Operations) ─────────────────────────────────
+
+import * as trimClip      from './tools/trim_clip.js';
+import * as moveClip      from './tools/move_clip.js';
+import * as splitClip     from './tools/split_clip.js';
+import * as copyClip      from './tools/copy_clip.js';
+import * as addFade       from './tools/add_fade.js';
+import * as addTransition from './tools/add_transition.js';
+
+// ── Tools — Phase 3 (Media Controls per Type) ─────────────────────────────────
+
+import * as setVideoOptions   from './tools/set_video_options.js';
+import * as setAudioOptions   from './tools/set_audio_options.js';
+import * as setImageTransform from './tools/set_image_transform.js';
+import * as setTextStyle      from './tools/set_text_style.js';
+import * as setShapeStyle     from './tools/set_shape_style.js';
+
 // ── Resources ─────────────────────────────────────────────────────────────────
 
 import { registerResources } from './resources/index.js';
@@ -83,17 +102,19 @@ import { registerResources } from './resources/index.js';
 // Service graph (pure dependency injection — no singletons leaked out)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const storage           = new StorageService();
-const projectService    = new ProjectService(storage);
-const inspectionService = new InspectionService(projectService);
-const exportService     = new ExportService(projectService, storage);
-const validationService = new ValidationService(projectService, storage);
-const regressionService = new RegressionService(
+const storage            = new StorageService();
+const projectService     = new ProjectService(storage);
+const inspectionService  = new InspectionService(projectService);
+const exportService      = new ExportService(projectService, storage);
+const validationService  = new ValidationService(projectService, storage);
+const regressionService  = new RegressionService(
   projectService, exportService, validationService, inspectionService,
 );
-const trackService      = new TrackService(projectService);   // Phase 1
-const clipService       = new ClipService(projectService);    // Phase 1
-const exportParser      = new ExportParser();
+const trackService       = new TrackService(projectService);         // Phase 1
+const clipService        = new ClipService(projectService);          // Phase 1
+const clipEditingService = new ClipEditingService(projectService);   // Phase 2
+const clipStyleService   = new ClipStyleService(projectService);     // Phase 3
+const exportParser       = new ExportParser();
 
 /** Services bag passed into every tool handler. */
 const services = {
@@ -105,6 +126,8 @@ const services = {
   regressionService,
   trackService,
   clipService,
+  clipEditingService,
+  clipStyleService,
   exportParser,
 };
 
@@ -133,6 +156,21 @@ const ALL_TOOLS = [
   removeClip,
   inspectClip,
   listProjects,
+
+  // Phase 2 — Clip Editing Operations
+  trimClip,
+  moveClip,
+  splitClip,
+  copyClip,
+  addFade,
+  addTransition,
+
+  // Phase 3 — Media Controls per Type
+  setVideoOptions,
+  setAudioOptions,
+  setImageTransform,
+  setTextStyle,
+  setShapeStyle,
 ];
 
 /** @type {Map<string, Function>} */
@@ -145,7 +183,7 @@ const toolHandlers = new Map(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'videoforge-mcp', version: '1.1.0' },
+  { name: 'videoforge-mcp', version: '1.3.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
@@ -186,4 +224,4 @@ registerResources(server, { inspectionService, exportService });
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error('[VideoForge MCP] Server running on stdio — 17 tools active');
+console.error('[VideoForge MCP] Server running on stdio — 28 tools active');
