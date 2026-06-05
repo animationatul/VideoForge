@@ -22,8 +22,8 @@
  * ✅ Phase 1 — Track & Clip Factory        (8 tools)
  * ✅ Phase 2 — Clip Editing Operations     (6 tools)
  * ✅ Phase 3 — Media Controls per Type     (5 tools)
- * ⬜ Phase 4 — Caption Engine Core
- * ⬜ Phase 5 — Caption Engine Advanced
+ * ✅ Phase 4 — Caption Engine Core         (8 tools)
+ * ✅ Phase 5 — Caption Engine Advanced     (11 tools)
  * ✅ Phase 6 — MP4 Export Pipeline         (3 tools)
  * ⬜ Phase 7 — Validation & Quality
  * ⬜ Phase 8 — Regression Extension
@@ -49,6 +49,7 @@ import { TrackService }        from './services/TrackService.js';        // Phas
 import { ClipService }         from './services/ClipService.js';         // Phase 1
 import { ClipEditingService }  from './services/ClipEditingService.js';  // Phase 2
 import { ClipStyleService }    from './services/ClipStyleService.js';    // Phase 3
+import { CaptionService }     from './services/CaptionService.js';      // Phase 4+5
 import { Mp4ExportService }   from './services/Mp4ExportService.js';    // Phase 6
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -95,6 +96,31 @@ import * as setImageTransform from './tools/set_image_transform.js';
 import * as setTextStyle      from './tools/set_text_style.js';
 import * as setShapeStyle     from './tools/set_shape_style.js';
 
+// ── Tools — Phase 4 (Caption Engine Core) ────────────────────────────────────
+
+import * as inspectCaption        from './tools/inspect_caption.js';
+import * as setCaptionTranscript  from './tools/set_caption_transcript.js';
+import * as applyCaptionPreset    from './tools/apply_caption_preset.js';
+import * as setCaptionStyle       from './tools/set_caption_style.js';
+import * as setCaptionLayout      from './tools/set_caption_layout.js';
+import * as listCaptionPresets    from './tools/list_caption_presets.js';
+import * as getActiveCaptionWords from './tools/get_active_caption_words.js';
+import * as addCaptionAnimation   from './tools/add_caption_animation.js';
+
+// ── Tools — Phase 5 (Caption Engine Advanced) ─────────────────────────────────
+
+import * as addCaptionEffect          from './tools/add_caption_effect.js';
+import * as removeCaptionAnimation    from './tools/remove_caption_animation.js';
+import * as removeCaptionEffect       from './tools/remove_caption_effect.js';
+import * as addCaptionKeyframe        from './tools/add_caption_keyframe.js';
+import * as highlightCaptionWord      from './tools/highlight_caption_word.js';
+import * as highlightCaptionKeywords  from './tools/highlight_caption_keywords.js';
+import * as clearCaptionHighlights    from './tools/clear_caption_highlights.js';
+import * as buildCaptionKaraoke       from './tools/build_caption_karaoke.js';
+import * as animateCaptionWords       from './tools/animate_caption_words.js';
+import * as animateCaptionCharacters  from './tools/animate_caption_characters.js';
+import * as setCaptionSegmentStyle    from './tools/set_caption_segment_style.js';
+
 // ── Tools — Phase 6 (MP4 Export Pipeline) ─────────────────────────────────────
 
 import * as exportMp4         from './tools/export_mp4.js';
@@ -121,6 +147,7 @@ const trackService       = new TrackService(projectService);         // Phase 1
 const clipService        = new ClipService(projectService);          // Phase 1
 const clipEditingService = new ClipEditingService(projectService);   // Phase 2
 const clipStyleService   = new ClipStyleService(projectService);     // Phase 3
+const captionService     = new CaptionService(projectService);       // Phase 4+5
 const mp4ExportService   = new Mp4ExportService(projectService);     // Phase 6
 const exportParser       = new ExportParser();
 
@@ -136,6 +163,7 @@ const services = {
   clipService,
   clipEditingService,
   clipStyleService,
+  captionService,
   mp4ExportService,
   exportParser,
 };
@@ -181,6 +209,29 @@ const ALL_TOOLS = [
   setTextStyle,
   setShapeStyle,
 
+  // Phase 4 — Caption Engine Core
+  inspectCaption,
+  setCaptionTranscript,
+  applyCaptionPreset,
+  setCaptionStyle,
+  setCaptionLayout,
+  listCaptionPresets,
+  getActiveCaptionWords,
+  addCaptionAnimation,
+
+  // Phase 5 — Caption Engine Advanced
+  addCaptionEffect,
+  removeCaptionAnimation,
+  removeCaptionEffect,
+  addCaptionKeyframe,
+  highlightCaptionWord,
+  highlightCaptionKeywords,
+  clearCaptionHighlights,
+  buildCaptionKaraoke,
+  animateCaptionWords,
+  animateCaptionCharacters,
+  setCaptionSegmentStyle,
+
   // Phase 6 — MP4 Export Pipeline
   exportMp4,
   getFfmpegCommand,
@@ -197,7 +248,7 @@ const toolHandlers = new Map(
 // ─────────────────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: 'videoforge-mcp', version: '1.6.0' },
+  { name: 'videoforge-mcp', version: '1.9.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
@@ -238,4 +289,4 @@ registerResources(server, { inspectionService, exportService });
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.error('[VideoForge MCP] Server running on stdio — 31 tools active');
+console.error('[VideoForge MCP] Server running on stdio — 50 tools active');
