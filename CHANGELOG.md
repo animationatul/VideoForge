@@ -4,6 +4,33 @@ All notable changes to VideoForge are documented here.
 
 ---
 
+## v0.9.1-alpha.1
+
+### Added
+
+- **CropEffect** — New `CropEffect` class (`src/effects/CropEffect.js`) that removes pixels
+  from any combination of the four edges (`top`, `bottom`, `left`, `right`) while keeping
+  the output frame size constant (black fill for removed regions).
+- **CROP_ALIGNMENT constant** — Nine-position enum (`center`, `top`, `bottom`, `left`,
+  `right`, `topLeft`, `topRight`, `bottomLeft`, `bottomRight`) controlling where the
+  remaining content is anchored within the original canvas.
+- **`clip.addCrop(options)`** — Convenience method on all `Clip` subclasses, equivalent
+  to `clip.addEffect(new CropEffect(options))`.
+- **EFFECT_TYPES.CROP** — New `'crop'` entry in the shared `EFFECT_TYPES` constant.
+- **Crop export — MP4 (FFmpeg)**: `crop=iw-L-R:ih-T-B:L:T` + `pad` filters applied per
+  clip, with padding offsets computed from the chosen `CROP_ALIGNMENT`.
+- **Crop export — Premiere XML**: Emits Premiere's built-in `Crop` effect with
+  left/right/top/bottom as canvas percentages; non-centre alignment shifts the clip via
+  the `Basic Motion` centre parameter.
+- **Crop export — FCPXML**: Emits `<adjust-crop mode="trim">` with normalised (0–1)
+  values; non-centre alignment adds `<adjust-transform position="X Y">`.
+- **Crop export — JSON**: Fully serialised via the standard `effects` array; round-tripped
+  with `CropEffect.fromJSON()`.
+- **Crop export — EDL**: Crop values and alignment noted as `* CROP: …` comment
+  annotations (CMX3600 cannot represent crop natively).
+
+---
+
 ## v0.9.0-alpha.1
 
 ### Added
