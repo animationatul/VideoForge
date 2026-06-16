@@ -37,7 +37,21 @@ export const EFFECT_TYPES = Object.freeze({
   TRANSITION: 'transition',
   COLOR_CORRECTION: 'colorCorrection',
   BLUR: 'blur',
+  CROP: 'crop',
   CUSTOM: 'custom',
+});
+
+/** Alignment options for the crop effect. */
+export const CROP_ALIGNMENT = Object.freeze({
+  CENTER:       'center',
+  TOP:          'top',
+  BOTTOM:       'bottom',
+  LEFT:         'left',
+  RIGHT:        'right',
+  TOP_LEFT:     'topLeft',
+  TOP_RIGHT:    'topRight',
+  BOTTOM_LEFT:  'bottomLeft',
+  BOTTOM_RIGHT: 'bottomRight',
 });
 
 /** Transition sub-types. */

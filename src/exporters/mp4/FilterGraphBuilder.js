@@ -163,6 +163,17 @@ class FilterGraphBuilder {
       filters.push(`setpts=PTS/${speed}`);
     }
 
+    // Crop + alignment
+    const crop = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    const { l, r, t, b } = crop;
+    if (l || r || t || b) {
+      const cropFx = this._findEffect(clip, 'crop');
+      const alignment = cropFx ? (cropFx.getParam('alignment') ?? 'center') : 'center';
+      const [px, py] = _cropPadding(l, r, t, b, alignment);
+      filters.push(`crop=iw-${l}-${r}:ih-${t}-${b}:${l}:${t}`);
+      filters.push(`pad=iw+${l}+${r}:ih+${t}+${b}:${px}:${py}:black`);
+    }
+
     const outputDur = isFinite(srcDur) ? srcDur / speed : null;
 
     const fadeIn = this._findEffect(clip, 'fadeIn');
@@ -223,6 +234,32 @@ class FilterGraphBuilder {
   _findEffect(clip, type) {
     if (!Array.isArray(clip.effects)) return null;
     return clip.effects.find(e => e.type === type) ?? null;
+  }
+}
+
+/**
+ * Compute the pad filter X/Y offsets that place cropped content at `alignment`
+ * within the restored full-size canvas.
+ * @param {number} l - Left crop pixels.
+ * @param {number} r - Right crop pixels.
+ * @param {number} t - Top crop pixels.
+ * @param {number} b - Bottom crop pixels.
+ * @param {string} alignment - CROP_ALIGNMENT value.
+ * @returns {[number|string, number|string]} [padX, padY]
+ */
+function _cropPadding(l, r, t, b, alignment) {
+  const cx = l + r;
+  const cy = t + b;
+  switch (alignment) {
+    case 'top':         return [Math.floor(cx / 2), 0];
+    case 'bottom':      return [Math.floor(cx / 2), cy];
+    case 'left':        return [0,  Math.floor(cy / 2)];
+    case 'right':       return [cx, Math.floor(cy / 2)];
+    case 'topLeft':     return [0,  0];
+    case 'topRight':    return [cx, 0];
+    case 'bottomLeft':  return [0,  cy];
+    case 'bottomRight': return [cx, cy];
+    default:            return [Math.floor(cx / 2), Math.floor(cy / 2)]; // center
   }
 }
 
