@@ -370,6 +370,11 @@ class PremiereXmlExporter extends Exporter {
         this._emitOpacityWithFades(b, clip, endFrame - startFrame, fps);
       }
 
+      // Crop filter (video only)
+      if (mediaType === 'video' && this._hasCrop(clip)) {
+        this._emitCropFilter(b, clip, itr);
+      }
+
       // Speed / time remap filter (negative value encodes reverse)
       if (clip.speed !== 1 || clip.reverse) {
         const speedVal = (clip.reverse ? -1 : 1) * clip.speed * 100;
@@ -503,8 +508,10 @@ class PremiereXmlExporter extends Exporter {
   // ─── Motion filter ────────────────────────────────────────────────────────────
 
   _emitMotionFilter(b, clip, itr) {
-    const cx       = Math.round(itr.width  / 2) + (clip.position?.x ?? 0);
-    const cy       = Math.round(itr.height / 2) + (clip.position?.y ?? 0);
+    // Include crop-alignment offset so the cropped content is positioned correctly.
+    const cropOffset = this._cropAlignmentOffset(clip, itr);
+    const cx       = Math.round(itr.width  / 2) + (clip.position?.x ?? 0) + cropOffset.x;
+    const cy       = Math.round(itr.height / 2) + (clip.position?.y ?? 0) + cropOffset.y;
     const scaleVal = Math.round((clip.scale?.x ?? 1) * 100);
     const rotation = clip.rotation ?? 0;
 
@@ -530,6 +537,79 @@ class PremiereXmlExporter extends Exporter {
         b.close();
       b.close();
     b.close(); // filter
+  }
+
+  // ─── Crop filter ──────────────────────────────────────────────────────────────
+
+  _hasCrop(clip) {
+    const c = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    return c.l !== 0 || c.r !== 0 || c.t !== 0 || c.b !== 0;
+  }
+
+  /**
+   * Emit Premiere Pro's built-in Crop video effect.
+   * Values are percentages (0–100) relative to the project canvas size.
+   */
+  _emitCropFilter(b, clip, itr) {
+    const crop = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    const leftPct   = Number((crop.l / itr.width  * 100).toFixed(4));
+    const rightPct  = Number((crop.r / itr.width  * 100).toFixed(4));
+    const topPct    = Number((crop.t / itr.height * 100).toFixed(4));
+    const bottomPct = Number((crop.b / itr.height * 100).toFixed(4));
+
+    b.open('filter');
+      b.open('effect');
+        b.leaf('name',       {}, 'Crop');
+        b.leaf('effectid',   {}, 'crop');
+        b.leaf('effecttype', {}, 'video');
+        b.leaf('mediatype',  {}, 'video');
+        b.open('parameter');
+          b.leaf('parameterid', {}, 'left');
+          b.leaf('name',  {}, 'Left');
+          b.leaf('value', {}, String(leftPct));
+        b.close();
+        b.open('parameter');
+          b.leaf('parameterid', {}, 'right');
+          b.leaf('name',  {}, 'Right');
+          b.leaf('value', {}, String(rightPct));
+        b.close();
+        b.open('parameter');
+          b.leaf('parameterid', {}, 'top');
+          b.leaf('name',  {}, 'Top');
+          b.leaf('value', {}, String(topPct));
+        b.close();
+        b.open('parameter');
+          b.leaf('parameterid', {}, 'bottom');
+          b.leaf('name',  {}, 'Bottom');
+          b.leaf('value', {}, String(bottomPct));
+        b.close();
+      b.close();
+    b.close(); // filter
+  }
+
+  /**
+   * Compute the pixel offset that aligns the cropped content within the canvas.
+   * Used by _emitMotionFilter to shift the clip center.
+   * @returns {{ x: number, y: number }}
+   */
+  _cropAlignmentOffset(clip, itr) {
+    if (!this._hasCrop(clip)) return { x: 0, y: 0 };
+    const crop = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    const cropFx = (clip.effects ?? []).find((e) => e.type === 'crop');
+    const alignment = cropFx ? (cropFx.getParam?.('alignment') ?? 'center') : 'center';
+    const hShift = (crop.l - crop.r) / 2;
+    const vShift = (crop.t - crop.b) / 2;
+    switch (alignment) {
+      case 'top':         return { x: hShift,  y: -(crop.t + crop.b) / 2 };
+      case 'bottom':      return { x: hShift,  y:  (crop.t + crop.b) / 2 };
+      case 'left':        return { x: -(crop.l + crop.r) / 2, y: vShift };
+      case 'right':       return { x:  (crop.l + crop.r) / 2, y: vShift };
+      case 'topLeft':     return { x: -(crop.l + crop.r) / 2, y: -(crop.t + crop.b) / 2 };
+      case 'topRight':    return { x:  (crop.l + crop.r) / 2, y: -(crop.t + crop.b) / 2 };
+      case 'bottomLeft':  return { x: -(crop.l + crop.r) / 2, y:  (crop.t + crop.b) / 2 };
+      case 'bottomRight': return { x:  (crop.l + crop.r) / 2, y:  (crop.t + crop.b) / 2 };
+      default:            return { x: 0, y: 0 }; // center — no offset needed
+    }
   }
 
   // ─── Generic effect filter ────────────────────────────────────────────────────
@@ -950,11 +1030,19 @@ class PremiereXmlExporter extends Exporter {
   }
 
   _hasTransform(clip) {
-    return (
+    const hasMotion = (
       (clip.position?.x !== 0 || clip.position?.y !== 0) ||
       (clip.scale?.x    !== 1 || clip.scale?.y    !== 1) ||
       (clip.rotation ?? 0) !== 0
     );
+    if (hasMotion) return true;
+    // Non-center crop alignment requires a motion filter to reposition content.
+    if (this._hasCrop(clip)) {
+      const cropFx = (clip.effects ?? []).find((e) => e.type === 'crop');
+      const alignment = cropFx ? (cropFx.getParam?.('alignment') ?? 'center') : 'center';
+      if (alignment !== 'center') return true;
+    }
+    return false;
   }
 
   _mapTransAlignment(alignment) {

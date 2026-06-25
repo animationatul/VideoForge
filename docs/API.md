@@ -19,6 +19,7 @@ Complete API documentation for VideoForge v0.9.0-alpha.1.
 6. [Effects](#6-effects)
    - [FadeEffect](#61-fadeeffect)
    - [Transition](#62-transition)
+   - [CropEffect](#63-cropeffect)
 7. [Exporters](#7-exporters)
    - [Mp4Exporter](#71-mp4exporter)
    - [PremiereXmlExporter](#72-premierexmlexporter)
@@ -577,6 +578,33 @@ clip.fadeOut(1);
 
 ---
 
+#### `addCrop(options?): Clip`
+
+Append a `CropEffect` that removes pixels from one or more edges and places the remaining content within the original canvas at the given alignment. Chainable.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `top` | `number` | `0` | Pixels to remove from the top edge |
+| `bottom` | `number` | `0` | Pixels to remove from the bottom edge |
+| `left` | `number` | `0` | Pixels to remove from the left edge |
+| `right` | `number` | `0` | Pixels to remove from the right edge |
+| `alignment` | `string` | `'center'` | Where to place the cropped content — one of `CROP_ALIGNMENT.*` |
+
+```js
+import { CROP_ALIGNMENT } from 'videoforge';
+
+// Crop 100 px from top and bottom; center the result
+clip.addCrop({ top: 100, bottom: 100 });
+
+// Crop sides and pin result to the left edge
+clip.addCrop({ left: 300, right: 300, alignment: CROP_ALIGNMENT.LEFT });
+
+// Chain with other effects
+clip.addCrop({ top: 80, alignment: CROP_ALIGNMENT.TOP }).fadeIn(0.5);
+```
+
+---
+
 #### `addEffect(effect): Clip` / `removeEffect(id): boolean` / `getEffect(id): Effect`
 
 Manually manage the effect chain.
@@ -1124,6 +1152,95 @@ clipA.addEffect(dissolve);
 ```
 
 > **Note:** Transitions are exported in Premiere XML and FCPXML but are not rendered in MP4 export (a warning is issued).
+
+---
+
+### 6.3 CropEffect
+
+**`import { CropEffect, CROP_ALIGNMENT } from 'videoforge'`**
+
+Removes pixels from any combination of edges and positions the remaining content within the original canvas using a 9-point alignment grid.
+
+```js
+new CropEffect(params?)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `params.top` | `number` | `0` | Pixels to remove from the top |
+| `params.bottom` | `number` | `0` | Pixels to remove from the bottom |
+| `params.left` | `number` | `0` | Pixels to remove from the left |
+| `params.right` | `number` | `0` | Pixels to remove from the right |
+| `params.alignment` | `string` | `'center'` | Content placement after crop — one of `CROP_ALIGNMENT.*` |
+
+#### Alignment values (`CROP_ALIGNMENT`)
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `CROP_ALIGNMENT.CENTER` | `'center'` | Content centred in the original frame (default) |
+| `CROP_ALIGNMENT.TOP` | `'top'` | Content pinned to the top edge |
+| `CROP_ALIGNMENT.BOTTOM` | `'bottom'` | Content pinned to the bottom edge |
+| `CROP_ALIGNMENT.LEFT` | `'left'` | Content pinned to the left edge |
+| `CROP_ALIGNMENT.RIGHT` | `'right'` | Content pinned to the right edge |
+| `CROP_ALIGNMENT.TOP_LEFT` | `'topLeft'` | Content pinned to the top-left corner |
+| `CROP_ALIGNMENT.TOP_RIGHT` | `'topRight'` | Content pinned to the top-right corner |
+| `CROP_ALIGNMENT.BOTTOM_LEFT` | `'bottomLeft'` | Content pinned to the bottom-left corner |
+| `CROP_ALIGNMENT.BOTTOM_RIGHT` | `'bottomRight'` | Content pinned to the bottom-right corner |
+
+#### Accessors
+
+All crop values and alignment are readable and writable via getters/setters:
+
+```js
+const fx = new CropEffect({ top: 100, bottom: 100 });
+fx.top;           // → 100
+fx.bottom = 150;  // update at any time
+fx.alignment = CROP_ALIGNMENT.TOP;
+```
+
+#### Methods
+
+| Method | Description |
+|--------|-------------|
+| `enable() / disable()` | Toggle effect; chainable |
+| `setParams(updates)` | Merge parameter updates; chainable |
+| `toJSON()` | Serialize to plain object |
+| `static fromJSON(data)` | Restore a `CropEffect` from serialised data |
+
+#### Export behaviour per format
+
+| Format | How crop is encoded |
+|--------|---------------------|
+| **MP4 (FFmpeg)** | `crop=iw-L-R:ih-T-B:L:T` then `pad=…:black` with offset per alignment |
+| **Premiere XML** | Built-in `Crop` video effect with `left/right/top/bottom` as canvas-percentage values; alignment shifts the `Basic Motion` centre point |
+| **FCPXML** | `<adjust-crop mode="trim">` with normalised (0–1) values; alignment adds `<adjust-transform position>` |
+| **EDL** | `* CROP: left=Xpx right=Xpx top=Xpx bottom=Xpx alignment=Y [not representable in EDL]` comment |
+| **JSON** | Fully serialised in the clip's `effects` array |
+
+#### Full example
+
+```js
+import { Project, CropEffect, CROP_ALIGNMENT } from 'videoforge';
+
+const project = new Project({ name: 'Crop Demo', fps: 30, width: 1920, height: 1080 });
+const vt = project.addTrack('video');
+
+// Crop a 16:9 clip to a 9:16 vertical frame, centred
+const clip = vt.addVideo('/footage/wide.mp4', { inPoint: 0, outPoint: 30 });
+const verticalCrop = (1920 - 607) / 2;   // keep 607 px wide → 9:16 at 1080p
+clip.addCrop({
+  left:      verticalCrop,
+  right:     verticalCrop,
+  alignment: CROP_ALIGNMENT.CENTER,
+});
+
+// Export — crop applied in all formats
+await project.export({ type: 'mp4',     output: './out.mp4' });
+await project.export({ type: 'premiere', output: './out.xml' });
+await project.export({ type: 'fcpxml',  output: './out.fcpxml' });
+```
+
+> **Shorthand:** `clip.addCrop({ ... })` is equivalent to `clip.addEffect(new CropEffect({ ... }))`.
 
 ---
 
@@ -1894,7 +2011,27 @@ EFFECT_TYPES.FADE_OUT         // 'fadeOut'
 EFFECT_TYPES.TRANSITION       // 'transition'
 EFFECT_TYPES.COLOR_CORRECTION // 'colorCorrection'
 EFFECT_TYPES.BLUR             // 'blur'
+EFFECT_TYPES.CROP             // 'crop'
 EFFECT_TYPES.CUSTOM           // 'custom'
+```
+
+### CROP_ALIGNMENT
+
+Positioning constant used with [`CropEffect`](#63-cropeffect) to control where the remaining
+content is placed within the original canvas after pixels are removed.
+
+```js
+import { CROP_ALIGNMENT } from 'videoforge';
+
+CROP_ALIGNMENT.CENTER        // 'center'       — default, content centred
+CROP_ALIGNMENT.TOP           // 'top'          — pinned to top edge
+CROP_ALIGNMENT.BOTTOM        // 'bottom'       — pinned to bottom edge
+CROP_ALIGNMENT.LEFT          // 'left'         — pinned to left edge
+CROP_ALIGNMENT.RIGHT         // 'right'        — pinned to right edge
+CROP_ALIGNMENT.TOP_LEFT      // 'topLeft'      — pinned to top-left corner
+CROP_ALIGNMENT.TOP_RIGHT     // 'topRight'     — pinned to top-right corner
+CROP_ALIGNMENT.BOTTOM_LEFT   // 'bottomLeft'   — pinned to bottom-left corner
+CROP_ALIGNMENT.BOTTOM_RIGHT  // 'bottomRight'  — pinned to bottom-right corner
 ```
 
 ### TRANSITION_TYPES

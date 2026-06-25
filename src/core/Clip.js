@@ -10,6 +10,7 @@
 import IdGenerator from '../utils/IdGenerator.js';
 import { CLIP_TYPES } from '../utils/Constants.js';
 import FadeEffect from '../effects/FadeEffect.js';
+import CropEffect from '../effects/CropEffect.js';
 
 class Clip {
   /**
@@ -213,6 +214,20 @@ class Clip {
    */
   fadeOut(duration = 1, options = {}) {
     return this.addEffect(new FadeEffect('out', duration, options));
+  }
+
+  /**
+   * Attach a crop effect to this clip.
+   * @param {object} [options={}]
+   * @param {number} [options.top=0]       - Pixels to remove from the top.
+   * @param {number} [options.bottom=0]    - Pixels to remove from the bottom.
+   * @param {number} [options.left=0]      - Pixels to remove from the left.
+   * @param {number} [options.right=0]     - Pixels to remove from the right.
+   * @param {string} [options.alignment]   - CROP_ALIGNMENT value (default: 'center').
+   * @returns {Clip} this (chainable)
+   */
+  addCrop(options = {}) {
+    return this.addEffect(new CropEffect(options));
   }
 
   // ─── Effect chain management ─────────────────────────────────────────────────

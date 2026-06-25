@@ -299,6 +299,7 @@ class FcpxmlExporter extends Exporter {
     if (captionTracks.length > 0) return true;
     if (clip.effects?.length > 0) return true;
     if (clip.speed !== 1) return true;
+    if (this._hasCrop(clip)) return true;
     return false;
   }
 
@@ -351,9 +352,16 @@ class FcpxmlExporter extends Exporter {
       }
     }
 
-    // Clip-level effects as adjust-* elements
+    // Crop adjustment
+    if (this._hasCrop(primaryClip)) {
+      this._emitCropAdjust(b, primaryClip, itr);
+    }
+
+    // Clip-level effects as adjust-* elements (skip crop — handled above)
     for (const effect of (primaryClip.effects ?? [])) {
-      this._emitClipEffect(b, effect, itr);
+      if (effect.type !== 'crop') {
+        this._emitClipEffect(b, effect, itr);
+      }
     }
   }
 
@@ -487,6 +495,40 @@ class FcpxmlExporter extends Exporter {
     b.close(); // title
   }
 
+  // ─── Crop adjustment ─────────────────────────────────────────────────────────
+
+  _hasCrop(clip) {
+    const c = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    return c.l !== 0 || c.r !== 0 || c.t !== 0 || c.b !== 0;
+  }
+
+  /**
+   * Emit FCPXML <adjust-crop> (trim mode) and optional <adjust-transform> for
+   * non-center alignment.  Crop values are normalized (0–1) fractions of the
+   * canvas dimensions.
+   */
+  _emitCropAdjust(b, clip, itr) {
+    const crop = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+    const leftN   = (crop.l / itr.width).toFixed(6);
+    const rightN  = (crop.r / itr.width).toFixed(6);
+    const topN    = (crop.t / itr.height).toFixed(6);
+    const bottomN = (crop.b / itr.height).toFixed(6);
+
+    b.open('adjust-crop', { mode: 'trim', enabled: '1' });
+      b.leaf('trim-rect', { left: leftN, right: rightN, top: topN, bottom: bottomN });
+    b.close(); // adjust-crop
+
+    // Alignment: shift content position so it matches the requested edge.
+    const cropFx = (clip.effects ?? []).find((e) => e.type === 'crop');
+    const alignment = cropFx ? (cropFx.getParam?.('alignment') ?? 'center') : 'center';
+    if (alignment !== 'center') {
+      const [ox, oy] = _fcpCropOffset(crop, alignment);
+      if (ox !== 0 || oy !== 0) {
+        b.leaf('adjust-transform', { position: `${ox} ${oy}` });
+      }
+    }
+  }
+
   // ─── Clip-level effect ────────────────────────────────────────────────────────
 
   _emitClipEffect(b, effect, itr) {
@@ -551,6 +593,33 @@ class FcpxmlExporter extends Exporter {
   _linearToDb(linear) {
     if (!linear || linear <= 0) return 0;
     return Math.round(20 * Math.log10(linear) * 100) / 100;
+  }
+}
+
+// ─── Crop helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Return the FCPXML position offset (in pixels) needed to shift the cropped
+ * content to the requested alignment within the original canvas.
+ * @param {{ l:number, r:number, t:number, b:number }} crop
+ * @param {string} alignment
+ * @returns {[number, number]} [x, y]
+ */
+function _fcpCropOffset(crop, alignment) {
+  const hHalf = (crop.l - crop.r) / 2;
+  const vHalf = (crop.t - crop.b) / 2;
+  const hFull = (crop.l + crop.r) / 2;
+  const vFull = (crop.t + crop.b) / 2;
+  switch (alignment) {
+    case 'top':         return [hHalf,   vFull];
+    case 'bottom':      return [hHalf,  -vFull];
+    case 'left':        return [hFull,   vHalf];
+    case 'right':       return [-hFull,  vHalf];
+    case 'topLeft':     return [hFull,   vFull];
+    case 'topRight':    return [-hFull,  vFull];
+    case 'bottomLeft':  return [hFull,  -vFull];
+    case 'bottomRight': return [-hFull, -vFull];
+    default:            return [0, 0];
   }
 }
 

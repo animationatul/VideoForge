@@ -16,7 +16,7 @@ import ClipRepresentation   from './ClipRepresentation.js';
 import EffectRepresentation from './EffectRepresentation.js';
 import TransitionRepresentation from './TransitionRepresentation.js';
 import CaptionRepresentation from './CaptionRepresentation.js';
-import { ASSET_TYPES, CLIP_TYPES, TRACK_TYPES } from '../utils/Constants.js';
+import { ASSET_TYPES, CLIP_TYPES, TRACK_TYPES, EFFECT_TYPES } from '../utils/Constants.js';
 import { resolveSequenceParams } from '../utils/FpsResolver.js';
 
 class TimelineConverter {
@@ -115,6 +115,21 @@ class TimelineConverter {
     const rep = ClipRepresentation.fromClip(clip, effectReps, captionRep);
     rep.transitions = transReps;
     rep.videoForgeMetadata = vfMetadata;
+
+    // Extract CropEffect params into the ITR crop field so all exporters can
+    // read a single source of truth without re-scanning the effects array.
+    const cropFx = Array.isArray(clip.effects)
+      ? clip.effects.find((e) => e && e.type === EFFECT_TYPES.CROP && e.enabled !== false)
+      : null;
+    if (cropFx) {
+      rep.crop = {
+        l: cropFx.params.left   ?? 0,
+        r: cropFx.params.right  ?? 0,
+        t: cropFx.params.top    ?? 0,
+        b: cropFx.params.bottom ?? 0,
+      };
+    }
+
     return rep;
   }
 

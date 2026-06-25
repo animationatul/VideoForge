@@ -100,6 +100,7 @@ function _mapEffectType(vfType) {
     colorGrade: 'lumetriColor',
     sharpen:    'sharpen',
     glow:       'glow',
+    crop:       'crop',
   };
   return map[String(vfType).toLowerCase()] ?? vfType;
 }
