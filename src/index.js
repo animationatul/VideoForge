@@ -34,6 +34,7 @@ export { default as ShapeClip } from './clips/ShapeClip.js';
 export { default as Effect }     from './effects/Effect.js';
 export { default as FadeEffect } from './effects/FadeEffect.js';
 export { default as Transition } from './effects/Transition.js';
+export { default as CropEffect } from './effects/CropEffect.js';
 
 // ─── Exporters ────────────────────────────────────────────────────────────────
 export { default as Exporter }            from './exporters/Exporter.js';
@@ -141,4 +142,5 @@ export {
   PLAYER_STATE,
   EASING,
   DEFAULTS,
+  CROP_ALIGNMENT,
 } from './utils/Constants.js';

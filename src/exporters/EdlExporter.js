@@ -164,8 +164,15 @@ class EdlExporter extends Exporter {
 
         // Unsupported features comment
         if (this.includeComments) {
-          if (clip.effects?.length > 0) {
-            lines.push(`* EFFECTS: ${clip.effects.map((e) => e.type || e.videoForgeType).join(', ')} [not representable in EDL]`);
+          const nonCropEffects = (clip.effects ?? []).filter((e) => e.type !== 'crop');
+          if (nonCropEffects.length > 0) {
+            lines.push(`* EFFECTS: ${nonCropEffects.map((e) => e.type || e.videoForgeType).join(', ')} [not representable in EDL]`);
+          }
+          const crop = clip.crop ?? { l: 0, r: 0, t: 0, b: 0 };
+          if (crop.l || crop.r || crop.t || crop.b) {
+            const cropFx = (clip.effects ?? []).find((e) => e.type === 'crop');
+            const alignment = cropFx ? (cropFx.getParam?.('alignment') ?? 'center') : 'center';
+            lines.push(`* CROP: left=${crop.l}px right=${crop.r}px top=${crop.t}px bottom=${crop.b}px alignment=${alignment} [not representable in EDL]`);
           }
           if (clip.opacity !== 1) {
             lines.push(`* OPACITY: ${clip.opacity} [not representable in EDL]`);

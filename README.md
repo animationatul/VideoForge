@@ -156,6 +156,7 @@ clip.remove();            // removes from owning track
 
 clip.fadeIn(1);           // 1-second fade-in effect
 clip.fadeOut(0.5);        // 0.5-second fade-out effect
+clip.addCrop({ top: 100, bottom: 100, alignment: 'center' }); // crop edges
 
 clip.addEffect(effect);   // append to effect chain
 clip.removeEffect(id);    // boolean
@@ -252,13 +253,25 @@ box.cornerRadius(8);
 ### Effects
 
 ```js
-import { FadeEffect, Transition, TRANSITION_TYPES, EASING } from 'videoforge';
+import { FadeEffect, CropEffect, Transition, TRANSITION_TYPES, EASING, CROP_ALIGNMENT } from 'videoforge';
 
 // Manual effect construction
 const fadeIn  = new FadeEffect('in',  1.5, { easing: EASING.EASE_OUT });
 const fadeOut = new FadeEffect('out', 1,   { easing: EASING.EASE_IN });
 
 clip.addEffect(fadeIn);
+
+// Crop effect — remove pixels from any edge, then align content within the frame
+clip.addCrop({ top: 100, bottom: 100, alignment: CROP_ALIGNMENT.CENTER });
+
+// Or construct directly for more control
+clip.addEffect(new CropEffect({
+  left:      200,
+  right:     200,
+  top:       0,
+  bottom:    0,
+  alignment: CROP_ALIGNMENT.LEFT,   // content hugs left edge
+}));
 
 // Transitions link two adjacent clips
 const dissolve = new Transition(TRANSITION_TYPES.CROSS_DISSOLVE, 1);
@@ -868,6 +881,7 @@ src/
 ├── effects/
 │   ├── Effect.js         Abstract base for all effects
 │   ├── FadeEffect.js     Opacity ramp (in / out)
+│   ├── CropEffect.js     Edge crop with alignment (top/bottom/left/right + 9-position align)
 │   └── Transition.js     Between-clip transition (dissolve, wipe, …)
 │
 ├── captions/
@@ -959,7 +973,8 @@ import {
   TRACK_TYPES,        // video | audio | image | text | shape
   CLIP_TYPES,         // video | audio | image | text | shape
   ASSET_TYPES,        // video | audio | image | font | synthetic
-  EFFECT_TYPES,       // fadeIn | fadeOut | transition | colorCorrection | blur | custom
+  EFFECT_TYPES,       // fadeIn | fadeOut | transition | colorCorrection | blur | crop | custom
+  CROP_ALIGNMENT,     // center | top | bottom | left | right | topLeft | topRight | bottomLeft | bottomRight
   TRANSITION_TYPES,   // crossDissolve | wipeLeft | wipeRight | wipeUp | wipeDown | slide | zoom | dipToBlack | dipToWhite
   EXPORT_TYPES,       // json | premiere | fcpxml | edl | mp4
   SHAPE_TYPES,        // rectangle | ellipse | triangle | line | polygon | arrow
@@ -1022,6 +1037,7 @@ See [Custom exporter using ITR](#custom-exporter-using-itr) above for a full exa
 - [x] CMX3600 EDL exporter (full)
 - [x] MP4 render pipeline V1 (FFmpeg filter-complex, VideoClip + AudioClip, embedded audio)
 - [x] `project.validate()` — pre-export validation API
+- [x] `CropEffect` — edge crop with alignment, exported to MP4/Premiere/FCPXML/EDL/JSON
 - [ ] Clip-type `fromJSON` registry (full round-trip deserialisation)
 - [ ] MP4 V2 — gap padding, caption/text/shape rendering, transitions
 - [ ] `node-canvas` / WebGL `CaptionRenderer` backend
