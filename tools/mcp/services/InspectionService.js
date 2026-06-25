@@ -213,7 +213,12 @@ export class InspectionService {
       scale: clip.scale,
       rotation: clip.rotation,
       effectCount: clip.effects.length,
-      effects: clip.effects.map((e) => ({ id: e.id, type: e.type, enabled: e.enabled })),
+      effects: clip.effects.map((e) => ({
+        id: e.id,
+        type: e.type,
+        enabled: e.enabled,
+        params: e.params && Object.keys(e.params).length > 0 ? e.params : undefined,
+      })),
       transitionCount: clip.transitions.length,
       transitions: clip.transitions.map((t) => ({ id: t.id, type: t.type, duration: t.duration })),
       hasCaption: clip.captionData !== null && clip.captionData !== undefined,

@@ -3,7 +3,7 @@
  * Clip-level editing operations: trim, move, split, copy, fade, transition.
  */
 
-import { Transition, TRANSITION_TYPES, EASING } from 'videoforge';
+import { Transition, TRANSITION_TYPES, EASING, CropEffect, CROP_ALIGNMENT } from 'videoforge';
 
 export class ClipEditingService {
   /**
@@ -208,6 +208,59 @@ export class ClipEditingService {
       transitionId: transition.id,
       transitionType,
       duration,
+      totalEffects: clip.effects.length,
+    };
+  }
+
+  /**
+   * Add a CropEffect to a clip, removing pixels from one or more edges.
+   * Uses the Clip.addCrop() convenience method added in v0.9.0-alpha.2.
+   *
+   * @param {string} projectId
+   * @param {string} clipId
+   * @param {object} options  { top?, bottom?, left?, right?, alignment? }
+   */
+  addCrop(projectId, clipId, options = {}) {
+    const project = this._projects.getProject(projectId);
+    const { clip } = this._requireClip(project, clipId);
+
+    const cropOptions = {};
+    if (options.top       !== undefined) cropOptions.top       = options.top;
+    if (options.bottom    !== undefined) cropOptions.bottom    = options.bottom;
+    if (options.left      !== undefined) cropOptions.left      = options.left;
+    if (options.right     !== undefined) cropOptions.right     = options.right;
+    if (options.alignment !== undefined) cropOptions.alignment = options.alignment;
+
+    clip.addCrop(cropOptions);
+
+    const effect = clip.effects[clip.effects.length - 1];
+    return {
+      clipId:       clip.id,
+      effectId:     effect.id,
+      type:         'crop',
+      params:       effect.params,
+      totalEffects: clip.effects.length,
+    };
+  }
+
+  /**
+   * Remove any effect (fade, transition, crop, etc.) from a clip by effect ID.
+   *
+   * @param {string} projectId
+   * @param {string} clipId
+   * @param {string} effectId
+   */
+  removeClipEffect(projectId, clipId, effectId) {
+    const project = this._projects.getProject(projectId);
+    const { clip } = this._requireClip(project, clipId);
+
+    const removed = clip.removeEffect(effectId);
+    if (!removed) throw new Error(`Effect not found: "${effectId}"`);
+
+    return {
+      clipId:       clip.id,
+      effectId,
+      removed:      true,
       totalEffects: clip.effects.length,
     };
   }
